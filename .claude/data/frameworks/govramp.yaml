@@ -1,0 +1,326 @@
+# GovRAMP Framework Data
+# State and Local Government Risk and Authorization Management Program
+
+name: GovRAMP
+full_name: Government Risk and Authorization Management Program
+version: "NIST 800-53 Rev 5"
+governing_body: GovRAMP (State/Local focused)
+applicable_to: State and local government agencies and their cloud service providers
+
+levels:
+  low:
+    id: low
+    name: Low Impact
+    control_count: 125
+    description: "Low Impact baseline for limited adverse effect systems"
+    typical_systems:
+      - Public information systems
+      - Non-sensitive applications
+      - Internal tools with minimal data
+    assessment_type: "3PAO or Authorized Assessor"
+
+  moderate:
+    id: moderate
+    name: Moderate Impact
+    control_count: 319
+    description: "Moderate Impact baseline for serious adverse effect systems"
+    typical_systems:
+      - Citizen data systems
+      - Financial systems
+      - Most state/local workloads
+    assessment_type: "3PAO Assessment"
+
+  high:
+    id: high
+    name: High Impact
+    control_count: 410
+    description: "High Impact baseline for severe/catastrophic effect systems"
+    typical_systems:
+      - Criminal justice systems
+      - Emergency services
+      - Critical infrastructure
+    assessment_type: "3PAO Assessment"
+
+phases:
+  - id: preparation
+    name: Preparation Phase
+    description: "Gap analysis, documentation, and control implementation"
+    key_activities:
+      - Conduct gap analysis against GovRAMP baseline
+      - Develop System Security Plan (SSP)
+      - Implement technical controls
+      - Create policies and procedures
+      - Prepare POA&M for known gaps
+    typical_duration: "2-4 months"
+
+  - id: readiness
+    name: Readiness Assessment Phase
+    description: "Self-assessment and 3PAO readiness review"
+    key_activities:
+      - Complete self-assessment checklist
+      - Engage 3PAO for readiness review
+      - Remediate critical findings
+      - Finalize documentation package
+    typical_duration: "1-2 months"
+
+  - id: full_assessment
+    name: Full Security Assessment Phase
+    description: "3PAO penetration testing and control validation"
+    key_activities:
+      - 3PAO penetration testing
+      - Control testing and evidence review
+      - Security Assessment Report (SAR)
+      - Vulnerability assessment
+    typical_duration: "1-2 months"
+
+  - id: authorization
+    name: Authorization Phase
+    description: "Package submission and ATO decision"
+    key_activities:
+      - Submit authorization package
+      - Sponsoring agency review
+      - Address review findings
+      - Receive Provisional ATO or ATO
+    typical_duration: "1-2 months"
+
+  - id: continuous_monitoring
+    name: Continuous Monitoring Phase
+    description: "Ongoing compliance and annual assessments"
+    key_activities:
+      - Monthly vulnerability scanning
+      - Quarterly POA&M updates
+      - Annual assessments
+      - Significant change management
+    ongoing: true
+
+control_families:
+  - id: AC
+    name: Access Control
+    priority: critical
+    key_controls:
+      - AC-2: Account Management
+      - AC-3: Access Enforcement
+      - AC-6: Least Privilege
+      - AC-17: Remote Access
+    infrastructure_concerns:
+      - RBAC configuration
+      - Network security groups
+      - Private endpoints
+      - Conditional access policies
+
+  - id: AU
+    name: Audit and Accountability
+    priority: critical
+    key_controls:
+      - AU-2: Audit Events
+      - AU-3: Content of Audit Records
+      - AU-6: Audit Review
+      - AU-12: Audit Record Generation
+    infrastructure_concerns:
+      - Centralized logging
+      - 90-day minimum retention
+      - SIEM integration
+      - Alert configuration
+
+  - id: AT
+    name: Awareness and Training
+    priority: medium
+    key_controls:
+      - AT-1: Policy and Procedures
+      - AT-2: Security Awareness Training
+      - AT-3: Role-Based Training
+    infrastructure_concerns:
+      - Training documentation
+      - Compliance tracking
+
+  - id: CA
+    name: Assessment, Authorization, Monitoring
+    priority: high
+    key_controls:
+      - CA-2: Control Assessments
+      - CA-7: Continuous Monitoring
+      - CA-8: Penetration Testing
+    infrastructure_concerns:
+      - Automated scanning
+      - ConMon tooling
+      - Assessment evidence
+
+  - id: CM
+    name: Configuration Management
+    priority: critical
+    key_controls:
+      - CM-2: Baseline Configuration
+      - CM-3: Configuration Change Control
+      - CM-6: Configuration Settings
+      - CM-8: System Component Inventory
+    infrastructure_concerns:
+      - Infrastructure as Code
+      - Git-based change control
+      - Baseline documentation
+      - Asset tagging
+
+  - id: CP
+    name: Contingency Planning
+    priority: high
+    key_controls:
+      - CP-2: Contingency Plan
+      - CP-7: Alternate Processing Site
+      - CP-9: System Backup
+      - CP-10: Recovery and Reconstitution
+    infrastructure_concerns:
+      - Backup policies
+      - DR configuration
+      - Multi-zone deployment
+      - Recovery procedures
+
+  - id: IA
+    name: Identification and Authentication
+    priority: critical
+    key_controls:
+      - IA-2: Identification and Authentication
+      - IA-5: Authenticator Management
+      - IA-8: Non-Organizational Users
+    infrastructure_concerns:
+      - MFA enforcement
+      - OIDC/SAML
+      - Managed identities
+      - Password policies
+
+  - id: IR
+    name: Incident Response
+    priority: high
+    key_controls:
+      - IR-4: Incident Handling
+      - IR-5: Incident Monitoring
+      - IR-6: Incident Reporting
+    infrastructure_concerns:
+      - SIEM/SOAR integration
+      - Alerting rules
+      - Playbook automation
+
+  - id: MA
+    name: Maintenance
+    priority: low
+    key_controls:
+      - MA-2: Controlled Maintenance
+      - MA-4: Nonlocal Maintenance
+    infrastructure_concerns:
+      - Inherited from cloud provider
+      - Patching procedures
+
+  - id: MP
+    name: Media Protection
+    priority: medium
+    key_controls:
+      - MP-2: Media Access
+      - MP-4: Media Storage
+      - MP-5: Media Transport
+    infrastructure_concerns:
+      - Encryption at rest
+      - Key management
+      - Data classification tags
+
+  - id: PE
+    name: Physical and Environmental Protection
+    priority: low
+    key_controls:
+      - PE-2: Physical Access Authorizations
+      - PE-3: Physical Access Control
+    infrastructure_concerns:
+      - Inherited from cloud provider
+      - Datacenter attestations
+
+  - id: PL
+    name: Planning
+    priority: medium
+    key_controls:
+      - PL-2: System Security Plans
+      - PL-4: Rules of Behavior
+    infrastructure_concerns:
+      - SSP documentation
+      - Architecture diagrams
+
+  - id: PS
+    name: Personnel Security
+    priority: medium
+    key_controls:
+      - PS-2: Position Risk Designation
+      - PS-3: Personnel Screening
+    infrastructure_concerns:
+      - HR policy documentation
+      - Background check records
+
+  - id: RA
+    name: Risk Assessment
+    priority: high
+    key_controls:
+      - RA-3: Risk Assessment
+      - RA-5: Vulnerability Scanning
+    infrastructure_concerns:
+      - Vulnerability scanning tools
+      - Risk register
+      - Remediation tracking
+
+  - id: SA
+    name: System and Services Acquisition
+    priority: medium
+    key_controls:
+      - SA-4: Acquisition Process
+      - SA-9: External System Services
+    infrastructure_concerns:
+      - Inherited from cloud provider
+      - Vendor management
+
+  - id: SC
+    name: System and Communications Protection
+    priority: critical
+    key_controls:
+      - SC-7: Boundary Protection
+      - SC-8: Transmission Confidentiality
+      - SC-12: Cryptographic Key Management
+      - SC-28: Protection of Information at Rest
+    infrastructure_concerns:
+      - TLS 1.2+ everywhere
+      - Network segmentation
+      - Private endpoints
+      - Key Vault/KMS
+
+  - id: SI
+    name: System and Information Integrity
+    priority: critical
+    key_controls:
+      - SI-2: Flaw Remediation
+      - SI-3: Malicious Code Protection
+      - SI-4: System Monitoring
+    infrastructure_concerns:
+      - Security monitoring tools
+      - Endpoint protection
+      - Intrusion detection
+      - Patch management
+
+csp_inheritance:
+  description: "Controls inherited from cloud service provider"
+  fully_inherited:
+    - PE (Physical and Environmental Protection)
+    - Most of MA (Maintenance)
+    - Parts of SA (System Acquisition)
+  partially_inherited:
+    - AC (Access Control)
+    - AU (Audit)
+    - SC (System Protection)
+  customer_responsibility:
+    - CM (Configuration Management)
+    - IA (Identification and Authentication)
+    - IR (Incident Response)
+
+documentation:
+  required:
+    - System Security Plan (SSP)
+    - Plan of Action and Milestones (POA&M)
+    - Security Assessment Report (SAR)
+    - Continuous Monitoring Plan
+    - Incident Response Plan
+    - Contingency Plan
+  templates:
+    ssp: "GovRAMP SSP Template"
+    poam: "GovRAMP POA&M Template"

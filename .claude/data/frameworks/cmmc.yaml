@@ -1,0 +1,340 @@
+# CMMC Framework Data
+# Cybersecurity Maturity Model Certification
+
+name: CMMC
+full_name: Cybersecurity Maturity Model Certification
+version: "2.0"
+governing_body: DoD (Department of Defense)
+applicable_to: Defense Industrial Base (DIB) contractors handling CUI or FCI
+
+levels:
+  level1:
+    id: level1
+    name: Level 1 - Foundational
+    practice_count: 17
+    description: "Basic safeguarding of Federal Contract Information (FCI)"
+    based_on: "FAR 52.204-21"
+    data_types:
+      - Federal Contract Information (FCI)
+    assessment_type: "Self-Assessment"
+    affirmation: "Annual self-affirmation in SPRS"
+
+  level2:
+    id: level2
+    name: Level 2 - Advanced
+    practice_count: 110
+    description: "Protection of Controlled Unclassified Information (CUI)"
+    based_on: "NIST SP 800-171 Rev 2"
+    data_types:
+      - Controlled Unclassified Information (CUI)
+      - Federal Contract Information (FCI)
+    assessment_type: "C3PAO Assessment (for critical programs) or Self-Assessment"
+    affirmation: "Triennial C3PAO assessment or annual self-assessment"
+
+  level3:
+    id: level3
+    name: Level 3 - Expert
+    practice_count: 134
+    description: "Enhanced protection against Advanced Persistent Threats (APT)"
+    based_on: "NIST SP 800-171 Rev 2 + NIST SP 800-172 subset"
+    data_types:
+      - Controlled Unclassified Information (CUI)
+      - Critical Programs
+    assessment_type: "Government-led Assessment"
+    affirmation: "Triennial government assessment"
+
+phases:
+  - id: gap_assessment
+    name: Gap Assessment
+    description: "Evaluate current security posture against CMMC requirements"
+    key_activities:
+      - Identify CUI/FCI data flows
+      - Map current controls to CMMC practices
+      - Document gaps and deficiencies
+      - Estimate remediation effort
+    typical_duration: "2-4 weeks"
+
+  - id: remediation
+    name: Remediation
+    description: "Implement security controls and practices to close gaps"
+    key_activities:
+      - Implement technical controls
+      - Develop/update policies and procedures
+      - Configure security tools
+      - Create System Security Plan (SSP)
+      - Document POA&M for any remaining gaps
+    typical_duration: "2-6 months"
+
+  - id: assessment
+    name: Assessment
+    description: "Self-assessment (L1) or C3PAO assessment (L2+)"
+    key_activities:
+      - Complete self-assessment questionnaire (L1)
+      - Engage C3PAO for third-party assessment (L2+)
+      - Evidence collection and presentation
+      - Remediate findings as needed
+    typical_duration: "1-3 months"
+
+  - id: certification
+    name: Certification
+    description: "Receive CMMC certification and register in SPRS"
+    key_activities:
+      - Submit assessment results to CMMC-AB
+      - Receive certification decision
+      - Register certification in SPRS
+      - Communicate status to prime contractors
+    typical_duration: "2-4 weeks"
+
+  - id: annual_affirmation
+    name: Annual Affirmation
+    description: "Maintain compliance through annual affirmation"
+    key_activities:
+      - Annual security reviews
+      - Update SSP and POA&M
+      - Affirm continued compliance in SPRS
+      - Prepare for triennial reassessment (L2+)
+    ongoing: true
+
+# CMMC uses "domains" instead of "control families"
+domains:
+  - id: AC
+    name: Access Control
+    priority: critical
+    practice_count_l1: 4
+    practice_count_l2: 22
+    key_practices:
+      - AC.L1-3.1.1: Authorized Access Control
+      - AC.L1-3.1.2: Transaction & Function Control
+      - AC.L2-3.1.5: Least Privilege
+      - AC.L2-3.1.12: Remote Access Control
+    infrastructure_concerns:
+      - RBAC/ABAC configuration
+      - Network segmentation
+      - Remote access controls
+      - Session management
+
+  - id: AT
+    name: Awareness and Training
+    priority: medium
+    practice_count_l1: 0
+    practice_count_l2: 3
+    key_practices:
+      - AT.L2-3.2.1: Security Awareness
+      - AT.L2-3.2.2: Role-Based Training
+    infrastructure_concerns:
+      - Training tracking systems
+      - Security awareness programs
+
+  - id: AU
+    name: Audit and Accountability
+    priority: critical
+    practice_count_l1: 0
+    practice_count_l2: 9
+    key_practices:
+      - AU.L2-3.3.1: System Auditing
+      - AU.L2-3.3.2: User Accountability
+      - AU.L2-3.3.4: Alert on Failure
+    infrastructure_concerns:
+      - Centralized logging
+      - Audit log protection
+      - Log retention (minimum varies)
+      - Alerting and monitoring
+
+  - id: CM
+    name: Configuration Management
+    priority: critical
+    practice_count_l1: 0
+    practice_count_l2: 9
+    key_practices:
+      - CM.L2-3.4.1: System Baselining
+      - CM.L2-3.4.2: Security Configuration
+      - CM.L2-3.4.6: Least Functionality
+    infrastructure_concerns:
+      - Infrastructure as Code
+      - Configuration baselines
+      - Change management
+      - System hardening
+
+  - id: IA
+    name: Identification and Authentication
+    priority: critical
+    practice_count_l1: 2
+    practice_count_l2: 11
+    key_practices:
+      - IA.L1-3.5.1: Identification
+      - IA.L1-3.5.2: Authentication
+      - IA.L2-3.5.3: MFA
+    infrastructure_concerns:
+      - MFA enforcement
+      - Identity provider configuration
+      - Service account management
+      - Password policies
+
+  - id: IR
+    name: Incident Response
+    priority: high
+    practice_count_l1: 0
+    practice_count_l2: 3
+    key_practices:
+      - IR.L2-3.6.1: Incident Handling
+      - IR.L2-3.6.2: Incident Reporting
+    infrastructure_concerns:
+      - Incident response procedures
+      - SIEM/SOAR tools
+      - Reporting mechanisms
+
+  - id: MA
+    name: Maintenance
+    priority: medium
+    practice_count_l1: 0
+    practice_count_l2: 6
+    key_practices:
+      - MA.L2-3.7.1: System Maintenance
+      - MA.L2-3.7.2: Maintenance Tools
+    infrastructure_concerns:
+      - Patch management
+      - Maintenance windows
+      - Tool authorization
+
+  - id: MP
+    name: Media Protection
+    priority: medium
+    practice_count_l1: 1
+    practice_count_l2: 9
+    key_practices:
+      - MP.L1-3.8.3: Media Disposal
+      - MP.L2-3.8.1: Media Protection
+      - MP.L2-3.8.9: CUI Backup Protection
+    infrastructure_concerns:
+      - Encryption at rest
+      - Media sanitization
+      - Backup encryption
+
+  - id: PE
+    name: Physical Protection
+    priority: low
+    practice_count_l1: 4
+    practice_count_l2: 6
+    key_practices:
+      - PE.L1-3.10.1: Physical Access
+      - PE.L1-3.10.3: Escort Visitors
+    infrastructure_concerns:
+      - Mostly inherited from cloud provider
+      - Physical access for on-prem
+
+  - id: PS
+    name: Personnel Security
+    priority: medium
+    practice_count_l1: 0
+    practice_count_l2: 2
+    key_practices:
+      - PS.L2-3.9.1: Screen Individuals
+      - PS.L2-3.9.2: CUI Protection During Actions
+    infrastructure_concerns:
+      - Background screening
+      - Access termination procedures
+
+  - id: RA
+    name: Risk Assessment
+    priority: high
+    practice_count_l1: 0
+    practice_count_l2: 3
+    key_practices:
+      - RA.L2-3.11.1: Risk Assessments
+      - RA.L2-3.11.2: Vulnerability Scanning
+    infrastructure_concerns:
+      - Vulnerability scanning tools
+      - Risk register
+      - Remediation tracking
+
+  - id: CA
+    name: Security Assessment
+    priority: high
+    practice_count_l1: 0
+    practice_count_l2: 4
+    key_practices:
+      - CA.L2-3.12.1: Security Assessments
+      - CA.L2-3.12.4: System Security Plan
+    infrastructure_concerns:
+      - Assessment automation
+      - SSP documentation
+      - POA&M management
+
+  - id: SC
+    name: System and Communications Protection
+    priority: critical
+    practice_count_l1: 2
+    practice_count_l2: 16
+    key_practices:
+      - SC.L1-3.13.1: Boundary Protection
+      - SC.L1-3.13.5: Public-Access System Separation
+      - SC.L2-3.13.8: CUI Encryption in Transit
+      - SC.L2-3.13.16: CUI Encryption at Rest
+    infrastructure_concerns:
+      - Network segmentation
+      - FIPS 140-2 validated encryption
+      - TLS 1.2+
+      - CUI boundary definition
+
+  - id: SI
+    name: System and Information Integrity
+    priority: critical
+    practice_count_l1: 4
+    practice_count_l2: 7
+    key_practices:
+      - SI.L1-3.14.1: Flaw Remediation
+      - SI.L1-3.14.2: Malicious Code Protection
+      - SI.L1-3.14.4: Update Malicious Code Protection
+      - SI.L2-3.14.3: Security Alerts
+    infrastructure_concerns:
+      - Endpoint protection
+      - Patch management
+      - Security monitoring
+      - Alert management
+
+# CMMC-specific terminology and concepts
+terminology:
+  cui: "Controlled Unclassified Information"
+  fci: "Federal Contract Information"
+  sprs: "Supplier Performance Risk System"
+  c3pao: "CMMC Third-Party Assessment Organization"
+  cmmc_ab: "CMMC Accreditation Body (now The Cyber AB)"
+  oss: "Organization Seeking Certification"
+  cui_boundary: "The logical or physical boundary where CUI is processed, stored, or transmitted"
+
+# Scoping guidance
+scoping:
+  in_scope:
+    - Systems processing CUI
+    - Systems storing CUI
+    - Systems transmitting CUI
+    - Security protection assets
+    - Assets providing security functions
+  out_of_scope:
+    - Systems with no CUI connectivity
+    - Completely isolated networks
+    - Air-gapped systems without CUI
+  boundary_definition:
+    - Network segmentation for CUI enclave
+    - Data flow diagrams
+    - System interconnection documentation
+
+documentation:
+  required:
+    - System Security Plan (SSP)
+    - Plan of Action and Milestones (POA&M)
+    - Network diagram
+    - Data flow diagram
+    - CUI asset inventory
+    - Policies and procedures for each domain
+  templates:
+    ssp: "NIST 800-171 SSP Template"
+    poam: "NIST 800-171 POA&M Template"
+
+# Key differences from FedRAMP/GovRAMP
+key_differences:
+  - "Focus on CUI/FCI protection, not system authorization"
+  - "Self-assessment option for Level 1 and some Level 2"
+  - "Based on NIST 800-171, not NIST 800-53"
+  - "Applies to contractors, not cloud services specifically"
+  - "Certification is for the organization, not the system"

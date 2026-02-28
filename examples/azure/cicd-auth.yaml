@@ -1,0 +1,273 @@
+# Azure CI/CD Authentication Patterns
+# GitHub Actions with OIDC (Secretless Authentication)
+
+# ==============================================================================
+# PR Validation Workflow
+# ==============================================================================
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main]
+
+# OIDC requires these permissions
+permissions:
+  id-token: write   # Required for OIDC token request
+  contents: read    # Required for checkout
+  pull-requests: write  # Required for PR comments
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # IA-2: OIDC Authentication (no secrets stored)
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      # CM-3: Configuration change validation
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+  # RA-5: Vulnerability scanning
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy Config Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+# ==============================================================================
+# Deployment Workflow
+# ==============================================================================
+---
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options: [dev, staging, prod]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # CM-3: Environment protection for change control
+    environment: ${{ inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # IA-2: OIDC Authentication
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      # AU-12: Audit record of planned changes
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan \
+            -var-file="environments/${{ inputs.environment || 'dev' }}.tfvars" \
+            -out=tfplan
+
+      # CM-3: Apply approved changes
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+
+# ==============================================================================
+# Azure OIDC Setup (Terraform)
+# ==============================================================================
+# This Terraform creates the Azure AD app registration and federated credentials
+# for GitHub Actions OIDC authentication
+---
+# terraform/cicd-identity/main.tf
+
+# App Registration for GitHub Actions
+resource "azuread_application" "github_actions" {
+  display_name = "${var.project_name}-github-actions"
+}
+
+resource "azuread_service_principal" "github_actions" {
+  client_id = azuread_application.github_actions.client_id
+}
+
+# Federated credential for main branch
+resource "azuread_application_federated_identity_credential" "main_branch" {
+  application_id = azuread_application.github_actions.id
+  display_name   = "github-main-branch"
+  description    = "GitHub Actions for main branch"
+  audiences      = ["api://AzureADTokenExchange"]
+  issuer         = "https://token.actions.githubusercontent.com"
+  subject        = "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/main"
+}
+
+# Federated credential for each environment
+resource "azuread_application_federated_identity_credential" "environments" {
+  for_each = toset(["dev", "staging", "prod"])
+
+  application_id = azuread_application.github_actions.id
+  display_name   = "github-environment-${each.key}"
+  description    = "GitHub Actions for ${each.key} environment"
+  audiences      = ["api://AzureADTokenExchange"]
+  issuer         = "https://token.actions.githubusercontent.com"
+  subject        = "repo:${var.github_org}/${var.github_repo}:environment:${each.key}"
+}
+
+# Federated credential for pull requests
+resource "azuread_application_federated_identity_credential" "pull_request" {
+  application_id = azuread_application.github_actions.id
+  display_name   = "github-pull-request"
+  description    = "GitHub Actions for pull requests"
+  audiences      = ["api://AzureADTokenExchange"]
+  issuer         = "https://token.actions.githubusercontent.com"
+  subject        = "repo:${var.github_org}/${var.github_repo}:pull_request"
+}
+
+# AC-6: Least privilege role assignment
+resource "azurerm_role_assignment" "contributor" {
+  scope                = data.azurerm_subscription.current.id
+  role_definition_name = "Contributor"
+  principal_id         = azuread_service_principal.github_actions.object_id
+}
+
+# Variables
+variable "project_name" {
+  type = string
+}
+
+variable "github_org" {
+  type = string
+}
+
+variable "github_repo" {
+  type = string
+}
+
+# Outputs for GitHub Secrets
+output "azure_client_id" {
+  description = "Set this as AZURE_CLIENT_ID in GitHub Secrets"
+  value       = azuread_application.github_actions.client_id
+}
+
+output "azure_tenant_id" {
+  description = "Set this as AZURE_TENANT_ID in GitHub Secrets"
+  value       = data.azurerm_client_config.current.tenant_id
+}
+
+output "azure_subscription_id" {
+  description = "Set this as AZURE_SUBSCRIPTION_ID in GitHub Secrets"
+  value       = data.azurerm_subscription.current.subscription_id
+}
+
+# ==============================================================================
+# Terraform State Backend
+# ==============================================================================
+---
+# terraform/bootstrap/backend.tf
+
+resource "azurerm_resource_group" "tfstate" {
+  name     = "tfstate-rg"
+  location = var.location
+
+  tags = {
+    Purpose   = "Terraform State Storage"
+    ManagedBy = "Bootstrap"
+  }
+}
+
+resource "azurerm_storage_account" "tfstate" {
+  name                     = "tfstate${random_string.suffix.result}"
+  resource_group_name      = azurerm_resource_group.tfstate.name
+  location                 = azurerm_resource_group.tfstate.location
+  account_tier             = "Standard"
+  account_replication_type = "GRS"
+
+  # SC-8: TLS enforcement
+  min_tls_version = "TLS1_2"
+
+  # SC-28: Encryption
+  infrastructure_encryption_enabled = true
+
+  # SC-7: Disable public access after setup
+  # public_network_access_enabled = false
+
+  blob_properties {
+    versioning_enabled = true
+
+    delete_retention_policy {
+      days = 90
+    }
+  }
+
+  tags = {
+    Purpose   = "Terraform State Storage"
+    ManagedBy = "Bootstrap"
+  }
+}
+
+resource "azurerm_storage_container" "tfstate" {
+  name                  = "tfstate"
+  storage_account_name  = azurerm_storage_account.tfstate.name
+  container_access_type = "private"
+}
+
+resource "random_string" "suffix" {
+  length  = 8
+  special = false
+  upper   = false
+}
+
+output "backend_config" {
+  value = <<-EOT
+    backend "azurerm" {
+      resource_group_name  = "${azurerm_resource_group.tfstate.name}"
+      storage_account_name = "${azurerm_storage_account.tfstate.name}"
+      container_name       = "${azurerm_storage_container.tfstate.name}"
+      key                  = "terraform.tfstate"
+    }
+  EOT
+}

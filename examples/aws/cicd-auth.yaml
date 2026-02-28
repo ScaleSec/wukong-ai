@@ -1,0 +1,364 @@
+# AWS CI/CD Authentication Patterns
+# GitHub Actions with OIDC (Secretless Authentication)
+
+# ==============================================================================
+# PR Validation Workflow
+# ==============================================================================
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main]
+
+# OIDC requires these permissions
+permissions:
+  id-token: write   # Required for OIDC token request
+  contents: read    # Required for checkout
+  pull-requests: write  # Required for PR comments
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # IA-2: OIDC Authentication (no secrets stored)
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      # CM-3: Configuration change validation
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+  # RA-5: Vulnerability scanning
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy Config Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+      # AWS-specific: Check for common misconfigurations
+      - name: Checkov Scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          framework: terraform
+          output_format: sarif
+          output_file_path: results.sarif
+
+# ==============================================================================
+# Deployment Workflow
+# ==============================================================================
+---
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options: [dev, staging, prod]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # CM-3: Environment protection for change control
+    environment: ${{ inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # IA-2: OIDC Authentication
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          role-session-name: github-actions-${{ github.run_id }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      # AU-12: Audit record of planned changes
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan \
+            -var-file="environments/${{ inputs.environment || 'dev' }}.tfvars" \
+            -out=tfplan
+
+      # CM-3: Apply approved changes
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+
+# ==============================================================================
+# AWS OIDC Setup (Terraform)
+# ==============================================================================
+# This Terraform creates the IAM OIDC provider and role for GitHub Actions
+---
+# terraform/cicd-identity/main.tf
+
+# GitHub OIDC Provider
+resource "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
+
+  client_id_list = ["sts.amazonaws.com"]
+
+  # GitHub's OIDC thumbprint
+  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+
+  tags = local.tags
+}
+
+# IAM Role for GitHub Actions
+resource "aws_iam_role" "github_actions" {
+  name = "${var.project_name}-github-actions"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.github.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = [
+              # Main branch
+              "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/main",
+              # Environment-based deployments
+              "repo:${var.github_org}/${var.github_repo}:environment:*",
+              # Pull requests (for validation)
+              "repo:${var.github_org}/${var.github_repo}:pull_request"
+            ]
+          }
+        }
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
+# AC-6: Least privilege - Custom policy for Terraform operations
+resource "aws_iam_role_policy" "terraform" {
+  name = "terraform-permissions"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "TerraformStateAccess"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.tfstate.arn,
+          "${aws_s3_bucket.tfstate.arn}/*"
+        ]
+      },
+      {
+        Sid    = "TerraformStateLock"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = aws_dynamodb_table.tfstate_lock.arn
+      },
+      {
+        Sid    = "TerraformResourceManagement"
+        Effect = "Allow"
+        Action = [
+          "ec2:*",
+          "rds:*",
+          "s3:*",
+          "iam:*",
+          "kms:*",
+          "logs:*",
+          "secretsmanager:*",
+          "dynamodb:*",
+          "elasticloadbalancing:*",
+          "cloudwatch:*",
+          "sns:*",
+          "sqs:*",
+          "lambda:*"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.allowed_regions
+          }
+        }
+      }
+    ]
+  })
+}
+
+# Variables
+variable "project_name" {
+  type = string
+}
+
+variable "github_org" {
+  type = string
+}
+
+variable "github_repo" {
+  type = string
+}
+
+variable "allowed_regions" {
+  type    = list(string)
+  default = ["us-east-1", "us-west-2"]
+}
+
+# Outputs for GitHub Secrets
+output "aws_role_arn" {
+  description = "Set this as AWS_ROLE_ARN in GitHub Secrets"
+  value       = aws_iam_role.github_actions.arn
+}
+
+# ==============================================================================
+# Terraform State Backend
+# ==============================================================================
+---
+# terraform/bootstrap/backend.tf
+
+resource "aws_s3_bucket" "tfstate" {
+  bucket = "${var.project_name}-tfstate-${data.aws_caller_identity.current.account_id}"
+
+  tags = {
+    Purpose   = "Terraform State Storage"
+    ManagedBy = "Bootstrap"
+  }
+}
+
+# SC-28: Encryption at rest
+resource "aws_s3_bucket_server_side_encryption_configuration" "tfstate" {
+  bucket = aws_s3_bucket.tfstate.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.tfstate.arn
+    }
+    bucket_key_enabled = true
+  }
+}
+
+# SC-7: Block public access
+resource "aws_s3_bucket_public_access_block" "tfstate" {
+  bucket = aws_s3_bucket.tfstate.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Enable versioning for state history
+resource "aws_s3_bucket_versioning" "tfstate" {
+  bucket = aws_s3_bucket.tfstate.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# KMS key for state encryption
+resource "aws_kms_key" "tfstate" {
+  description             = "KMS key for Terraform state encryption"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  tags = {
+    Purpose   = "Terraform State Encryption"
+    ManagedBy = "Bootstrap"
+  }
+}
+
+# DynamoDB table for state locking
+resource "aws_dynamodb_table" "tfstate_lock" {
+  name         = "${var.project_name}-tfstate-lock"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  # SC-28: Enable encryption
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = aws_kms_key.tfstate.arn
+  }
+
+  tags = {
+    Purpose   = "Terraform State Locking"
+    ManagedBy = "Bootstrap"
+  }
+}
+
+output "backend_config" {
+  value = <<-EOT
+    backend "s3" {
+      bucket         = "${aws_s3_bucket.tfstate.id}"
+      key            = "terraform.tfstate"
+      region         = "${data.aws_region.current.name}"
+      encrypt        = true
+      kms_key_id     = "${aws_kms_key.tfstate.arn}"
+      dynamodb_table = "${aws_dynamodb_table.tfstate_lock.name}"
+    }
+  EOT
+}
+
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}

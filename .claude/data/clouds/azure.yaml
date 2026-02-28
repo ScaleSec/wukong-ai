@@ -1,0 +1,294 @@
+# Azure Cloud Provider Data
+# Microsoft Azure patterns and mappings for compliance infrastructure
+
+name: Azure
+full_name: Microsoft Azure
+provider_prefix: azurerm
+terraform_provider: hashicorp/azurerm
+provider_source: "registry.terraform.io/hashicorp/azurerm"
+
+# Resource organization
+organization:
+  hierarchy:
+    - Management Groups
+    - Subscriptions
+    - Resource Groups
+    - Resources
+  region_variable: location
+  resource_group_concept: true
+  resource_group_resource: azurerm_resource_group
+  tagging_supported: true
+  tag_inheritance: false
+
+# Identity and authentication
+identity:
+  service_identity: Managed Identity
+  service_identity_resource: azurerm_user_assigned_identity
+  workload_identity: "Azure AD Workload Identity"
+  auth_methods:
+    - Azure AD OIDC
+    - Service Principal
+    - Managed Identity
+  mfa_service: "Azure AD Conditional Access"
+  directory_service: "Microsoft Entra ID (Azure AD)"
+
+# Core services mapping
+services:
+  # Logging and monitoring
+  logging:
+    name: Log Analytics Workspace
+    resource: azurerm_log_analytics_workspace
+    diagnostic_resource: azurerm_monitor_diagnostic_setting
+    retention_config: retention_in_days
+    default_retention: 90
+    log_categories:
+      - AuditEvent
+      - AllLogs
+    metric_categories:
+      - AllMetrics
+
+  monitoring:
+    name: Azure Monitor
+    resource: azurerm_monitor_*
+    alerting: azurerm_monitor_metric_alert
+    action_groups: azurerm_monitor_action_group
+    dashboards: azurerm_portal_dashboard
+
+  siem:
+    name: Microsoft Sentinel
+    resource: azurerm_sentinel_*
+    log_connector: azurerm_sentinel_data_connector_*
+    playbooks: azurerm_logic_app_workflow
+
+  # Secrets and encryption
+  secrets:
+    name: Key Vault
+    resource: azurerm_key_vault
+    secret_resource: azurerm_key_vault_secret
+    key_resource: azurerm_key_vault_key
+    certificate_resource: azurerm_key_vault_certificate
+    access_policy: azurerm_key_vault_access_policy
+    rbac_supported: true
+    hsm_option: "Key Vault Managed HSM"
+
+  kms:
+    name: Key Vault Keys
+    resource: azurerm_key_vault_key
+    cmk_support: true
+    rotation_config: rotation_policy
+
+  # Network security
+  network_isolation:
+    name: Private Endpoint
+    resource: azurerm_private_endpoint
+    private_dns: azurerm_private_dns_zone
+    vnet_integration: azurerm_app_service_virtual_network_swift_connection
+    service_endpoint: azurerm_subnet_service_endpoint_storage_policy
+
+  firewall:
+    name: Azure Firewall
+    resource: azurerm_firewall
+    policy: azurerm_firewall_policy
+    rules: azurerm_firewall_policy_rule_collection_group
+
+  network_security:
+    name: Network Security Group
+    resource: azurerm_network_security_group
+    rules: azurerm_network_security_rule
+    flow_logs: azurerm_network_watcher_flow_log
+
+  waf:
+    name: Web Application Firewall
+    resource: azurerm_web_application_firewall_policy
+    front_door_waf: azurerm_cdn_frontdoor_firewall_policy
+
+  ddos:
+    name: DDoS Protection
+    resource: azurerm_network_ddos_protection_plan
+
+  # Security monitoring
+  security_monitoring:
+    name: Microsoft Defender for Cloud
+    resource: azurerm_security_center_*
+    subscription_pricing: azurerm_security_center_subscription_pricing
+    auto_provisioning: azurerm_security_center_auto_provisioning
+    contact: azurerm_security_center_contact
+    workspaces:
+      - "Microsoft Defender for Servers"
+      - "Microsoft Defender for Storage"
+      - "Microsoft Defender for SQL"
+      - "Microsoft Defender for Containers"
+      - "Microsoft Defender for Key Vault"
+
+  vulnerability_scanning:
+    name: Microsoft Defender Vulnerability Management
+    integrated: true
+    container_scanning: "Microsoft Defender for Containers"
+
+  # Compute
+  compute:
+    vm: azurerm_linux_virtual_machine
+    vm_windows: azurerm_windows_virtual_machine
+    vmss: azurerm_linux_virtual_machine_scale_set
+    aks: azurerm_kubernetes_cluster
+    app_service: azurerm_linux_web_app
+    functions: azurerm_linux_function_app
+    container_instance: azurerm_container_group
+
+  # Storage
+  storage:
+    blob: azurerm_storage_account
+    file: azurerm_storage_share
+    queue: azurerm_storage_queue
+    table: azurerm_storage_table
+    encryption_at_rest: "Azure Storage Service Encryption (SSE)"
+    cmk_support: azurerm_storage_account_customer_managed_key
+
+  # Database
+  database:
+    sql: azurerm_mssql_server
+    postgresql: azurerm_postgresql_flexible_server
+    mysql: azurerm_mysql_flexible_server
+    cosmos: azurerm_cosmosdb_account
+    redis: azurerm_redis_cache
+
+# Compliance-specific configurations
+compliance:
+  # Encryption settings
+  encryption:
+    tls_attribute: minimum_tls_version
+    tls_value: "1.2"
+    infrastructure_encryption: infrastructure_encryption_enabled
+    cmk_attribute: customer_managed_key
+
+  # Network isolation
+  network:
+    public_access_attribute: public_network_access_enabled
+    public_access_disabled: false
+    private_endpoint_required: true
+
+  # Logging
+  audit:
+    diagnostic_setting_required: true
+    categories:
+      - AuditEvent
+      - AllLogs
+    metrics:
+      - AllMetrics
+
+  # Required tags for compliance
+  tags:
+    required:
+      - Environment
+      - ComplianceFramework
+      - ManagedBy
+    template: |
+      tags = merge(var.tags, {
+        Environment         = var.environment
+        ComplianceFramework = var.compliance_framework
+        ManagedBy          = "Terraform"
+      })
+
+# CI/CD integration
+cicd:
+  github_actions:
+    login_action: azure/login@v2
+    setup_action: null  # Not needed, uses azure/login
+    auth_type: OIDC
+    auth_params:
+      - client-id
+      - tenant-id
+      - subscription-id
+    secrets_required:
+      - AZURE_CLIENT_ID
+      - AZURE_TENANT_ID
+      - AZURE_SUBSCRIPTION_ID
+    example: |
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+  oidc_setup:
+    provider: "Microsoft Entra ID"
+    app_registration: true
+    federated_credential: true
+    subject_claims:
+      branch: "repo:{org}/{repo}:ref:refs/heads/{branch}"
+      environment: "repo:{org}/{repo}:environment:{environment}"
+      pull_request: "repo:{org}/{repo}:pull_request"
+    audience: "api://AzureADTokenExchange"
+
+  terraform_backend:
+    type: azurerm
+    resources:
+      - azurerm_storage_account
+      - azurerm_storage_container
+    config: |
+      backend "azurerm" {
+        resource_group_name  = "tfstate-rg"
+        storage_account_name = "tfstate{random}"
+        container_name       = "tfstate"
+        key                  = "terraform.tfstate"
+      }
+
+# Naming conventions
+naming:
+  pattern: "${var.project_name}-${var.environment}-{suffix}"
+  max_lengths:
+    storage_account: 24
+    key_vault: 24
+    resource_group: 90
+    general: 80
+  allowed_characters:
+    storage_account: "lowercase alphanumeric only"
+    key_vault: "alphanumeric and hyphens"
+    general: "alphanumeric, hyphens, underscores"
+  suffixes:
+    key_vault: kv
+    storage_account: st
+    log_analytics: law
+    virtual_network: vnet
+    subnet: snet
+    network_security_group: nsg
+    resource_group: rg
+
+# Required variables for modules
+required_variables:
+  - name: project_name
+    description: Project name for resource naming
+    type: string
+  - name: environment
+    description: Environment (dev, staging, prod)
+    type: string
+  - name: location
+    description: Azure region for resources
+    type: string
+  - name: resource_group_name
+    description: Name of the resource group
+    type: string
+  - name: tags
+    description: Additional tags to apply
+    type: map(string)
+    default: {}
+
+# Government cloud options
+government_clouds:
+  - name: Azure Government
+    environment: usgovernment
+    regions:
+      - usgovvirginia
+      - usgovtexas
+      - usgovarizona
+    certifications:
+      - FedRAMP High
+      - DoD IL2-IL5
+      - CJIS
+  - name: Azure Government Secret
+    environment: usgovernment
+    classification: Secret
+  - name: Azure Government Top Secret
+    environment: usgovernment
+    classification: Top Secret

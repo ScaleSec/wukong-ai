@@ -1,21 +1,32 @@
-# GovRAMP Compliance Multi-Agent Workflow System
+# Compliance Workflow Multi-Agent System
+
+**Multi-Cloud, Multi-Framework Agentic Compliance Automation**
 
 ## Executive Summary
 
-This document defines a comprehensive multi-agent workflow system using Claude Code to help security engineers build and maintain GovRAMP-compliant Azure Landing Zone Terraform codebases. The system provides specialized perspectives for compliance, architecture, security, project management, and documentation through dedicated Claude Code skills.
+This document defines a comprehensive multi-agent workflow system using Claude Code to help security engineers build and maintain compliant cloud infrastructure Terraform codebases. The system provides specialized perspectives for compliance, architecture, security, project management, and documentation through dedicated Claude Code skills.
 
-**Target Compliance:** GovRAMP Moderate (NIST 800-53 Rev 5, 319 controls)
+**Supported Frameworks:**
+- FedRAMP (Low/Moderate/High) - NIST 800-53 Rev 5
+- GovRAMP (Low/Moderate/High) - NIST 800-53 Rev 5
+- CMMC (Level 1/2/3) - NIST 800-171
+
+**Supported Cloud Providers:**
+- Azure (azurerm provider)
+- AWS (aws provider)
+- GCP (google provider)
 
 ---
 
 ## Table of Contents
 
 1. [System Architecture](#system-architecture)
-2. [Agent Definitions](#agent-definitions)
-3. [Key Workflows](#key-workflows)
-4. [Implementation Guide](#implementation-guide)
-5. [Control Family Reference](#control-family-reference)
-6. [Usage Examples](#usage-examples)
+2. [Session Configuration](#session-configuration)
+3. [Agent Definitions](#agent-definitions)
+4. [Key Workflows](#key-workflows)
+5. [Implementation Guide](#implementation-guide)
+6. [Control Reference](#control-reference)
+7. [Usage Examples](#usage-examples)
 
 ---
 
@@ -25,14 +36,22 @@ This document defines a comprehensive multi-agent workflow system using Claude C
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        GovRAMP Compliance Workflow System                    │
+│              Compliance Workflow Multi-Agent System                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
+│   ┌──────────────┐                                                          │
+│   │    /init     │  ◄── Start here: Configure cloud + framework             │
+│   │              │                                                          │
+│   │   Session    │      Creates: /.claude/session-context.md                │
+│   │   Config     │                                                          │
+│   └──────┬───────┘                                                          │
+│          │                                                                  │
+│          ▼                                                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
 │  │     /pm      │  │ /compliance  │  │  /architect  │  │  /security   │    │
 │  │              │  │              │  │              │  │              │    │
-│  │   Project    │  │   GovRAMP    │  │  Terraform   │  │   Security   │    │
-│  │   Manager    │  │  Compliance  │  │  Architect   │  │   Reviewer   │    │
+│  │   Project    │  │  Compliance  │  │  Terraform   │  │   Security   │    │
+│  │   Manager    │  │    Expert    │  │  Architect   │  │   Reviewer   │    │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘    │
 │         │                 │                 │                 │            │
 │         └─────────────────┴─────────────────┴─────────────────┘            │
@@ -42,7 +61,7 @@ This document defines a comprehensive multi-agent workflow system using Claude C
 │              ┌──────┴──────┐             ┌──────┴──────┐                   │
 │              │    /docs    │             │    /cicd    │                   │
 │              │             │             │             │                   │
-│              │ Documentation│            │   CI/CD     │                   │
+│              │Documentation│             │   CI/CD     │                   │
 │              │    Agent    │             │ Operations  │                   │
 │              └─────────────┘             └─────────────┘                   │
 │                                                                              │
@@ -66,281 +85,176 @@ Agents can be invoked:
 2. **Sequentially** - One agent hands off to another in a workflow
 3. **In Parallel** - Compound commands invoke multiple agents simultaneously
 
+**All agents read the session context** from `/.claude/session-context.md` to adapt their behavior to the configured cloud provider and compliance framework.
+
+---
+
+## Session Configuration
+
+### The `/init` Command
+
+Every engagement starts with `/init` to configure the session:
+
+```
+User: /init
+
+Agent: I'll help you configure this compliance session.
+       [Prompts for cloud provider, framework, and level]
+
+Result: Creates /.claude/session-context.md
+```
+
+### Session Context File
+
+```markdown
+# Session Context (Auto-generated by /init)
+
+## Engagement Configuration
+- **Cloud Provider:** Azure
+- **Compliance Framework:** FedRAMP
+- **Baseline Level:** Moderate
+- **Control/Practice Count:** 325
+
+## Quick Reference
+[Framework-specific control families and cloud-specific patterns]
+```
+
+### Data Files
+
+Agents reference these data files based on session configuration:
+
+| Type | Location | Purpose |
+|------|----------|---------|
+| Framework | `/.claude/data/frameworks/{framework}.yaml` | Control counts, phases, families |
+| Cloud | `/.claude/data/clouds/{cloud}.yaml` | Provider patterns, services, auth |
+| Examples | `/examples/{cloud}/` | Terraform code patterns |
+
 ---
 
 ## Agent Definitions
 
-### 1. Project Manager Agent (`/pm`)
+### 1. Session Configuration Agent (`/init`)
 
-**Purpose:** SOW analysis, scope tracking, timeline management, deliverable tracking
+**Purpose:** Configure cloud provider and compliance framework for the session
+
+**Responsibilities:**
+- Prompt for cloud provider selection (Azure, AWS, GCP)
+- Prompt for compliance framework (FedRAMP, GovRAMP, CMMC)
+- Prompt for baseline level
+- Create session context file
+- Display configuration summary
+
+---
+
+### 2. Project Manager Agent (`/pm`)
+
+**Purpose:** SOW analysis, scope tracking, deliverable management
 
 **Persona:**
-> You are a senior project manager specializing in GovRAMP/FedRAMP authorization projects. You understand compliance timelines, 3PAO engagement processes, and the phases of authorization. You help track deliverables, parse SOW documents, and answer questions about project scope and timeline.
+> You are a senior project manager specializing in compliance authorization projects. You understand compliance timelines, assessment processes, and authorization phases. Your expertise adapts based on the configured framework (FedRAMP 3PAO engagement, GovRAMP sponsoring agency processes, or CMMC C3PAO assessment).
 
 **Responsibilities:**
 - Parse and analyze Statement of Work (SOW) documents
-- Track project milestones against GovRAMP authorization phases
-- Answer scope/timeline questions
+- Track project milestones against authorization phases
+- Answer scope and deliverable questions
 - Coordinate handoffs between compliance phases
-- Maintain project status and risk register
-- Identify resource requirements and dependencies
+- Maintain project status and risk identification
 
-**Key Context Files:**
-```
-/docs/sow/*.pdf          # Statement of Work documents
-/docs/govramp-gap.md     # Gap analysis for timeline planning
-/docs/poam.md            # POA&M items for deliverable tracking
-/docs/risk-assessment.md # Risk register
-```
+**Authorization Phases:**
 
-**GovRAMP Authorization Phases:**
-1. **Preparation** - Gap analysis, documentation, technical controls
-2. **Readiness Assessment** - Self-assessment, 3PAO readiness review
-3. **Full Security Assessment** - 3PAO testing, penetration testing
-4. **Authorization** - Package submission, review, ATO decision
-5. **Continuous Monitoring** - Ongoing compliance, annual assessments
-
-**Example Queries:**
-- "Analyze this SOW and create a project plan"
-- "What's remaining for GovRAMP Ready status?"
-- "When should we engage the 3PAO?"
-- "What are the dependencies for the next milestone?"
+| FedRAMP/GovRAMP | CMMC |
+|-----------------|------|
+| Preparation | Gap Assessment |
+| Readiness Assessment | Remediation |
+| Full Security Assessment | Assessment (Self/C3PAO) |
+| Authorization | Certification |
+| Continuous Monitoring | Annual Affirmation |
 
 ---
 
-### 2. GovRAMP Compliance Agent (`/compliance`)
+### 3. Compliance Agent (`/compliance`)
 
-**Purpose:** NIST 800-53 Rev 5 control mapping and compliance review
+**Purpose:** Control mapping, gap analysis, SSP alignment
 
 **Persona:**
-> You are a GovRAMP/FedRAMP compliance expert with deep knowledge of NIST 800-53 Rev 5 controls. You understand the GovRAMP Moderate baseline (319 controls), can map infrastructure implementations to specific controls, and identify compliance gaps. You provide guidance on control implementation and maintain SSP alignment.
+> You are a compliance expert with deep knowledge of security frameworks. Your expertise adapts: for FedRAMP/GovRAMP you use NIST 800-53 Rev 5 controls; for CMMC you use NIST 800-171 practices. You map infrastructure implementations to specific controls and identify compliance gaps.
 
 **Responsibilities:**
-- Review Terraform code against 319 GovRAMP Moderate controls
+- Review Terraform code against configured framework controls
 - Map infrastructure changes to specific control implementations
 - Identify compliance gaps in new/modified code
 - Maintain System Security Plan (SSP) alignment
-- Review POA&M items for remediation progress
-- Validate inherited controls from Azure (CSP)
-- Ensure documentation meets GovRAMP requirements
+- Validate inherited controls from cloud provider
 
-**Key Context Files:**
-```
-/docs/govramp-gap.md           # Current compliance status
-/docs/system-security-plan.md  # SSP with control implementations
-/docs/policies/*.md            # 11 policy documents (AC-1 through SI-1)
-/docs/poam.md                  # Plan of Action and Milestones
-/docs/risk-assessment.md       # Risk register and mitigations
-```
+**Framework-Specific Guidance:**
 
-**Control Family Expertise:**
-| Family | Focus Area |
-|--------|------------|
-| AC | Access Control - RBAC, NSGs, private endpoints |
-| AU | Audit - Logging, monitoring, retention, review |
-| AT | Awareness & Training - Training programs, documentation |
-| CA | Assessment - Continuous monitoring, 3PAO readiness |
-| CM | Configuration Management - IaC, change control, baselines |
-| CP | Contingency Planning - Backup, DR, resilience |
-| IA | Identification & Authentication - OIDC, MFA, identities |
-| IR | Incident Response - Sentinel playbooks, procedures |
-| MA | Maintenance - Patching, updates (mostly inherited) |
-| MP | Media Protection - Data encryption, sanitization |
-| PE | Physical - Inherited from Azure |
-| PL | Planning - SSP, architecture documentation |
-| PS | Personnel Security - HR policies, screening |
-| RA | Risk Assessment - Risk register, vulnerability management |
-| SA | System Acquisition - Inherited from Azure |
-| SC | System & Communications - Encryption, network isolation |
-| SI | System Integrity - Defender, malware protection, monitoring |
-
-**Output Format:**
-When reviewing code, provide findings in this format:
-```
-## Compliance Review Summary
-
-### Control Mappings
-| Control ID | Control Name | Implementation | Status |
-|------------|--------------|----------------|--------|
-| SC-8 | Transmission Confidentiality | TLS 1.2+ enforced | Implemented |
-| AU-2 | Audit Events | Diagnostic settings enabled | Implemented |
-
-### Gaps Identified
-1. **AC-2(4)** - Inactive account automation not configured
-   - Recommendation: Configure Entra ID Access Reviews
-
-### SSP Updates Required
-- Section 13.1: Add Cosmos DB to system boundary
-- Appendix A: Update network diagram
-```
+| Framework | Standard | Control Focus |
+|-----------|----------|---------------|
+| FedRAMP | NIST 800-53 Rev 5 | Low: 156, Mod: 325, High: 421 controls |
+| GovRAMP | NIST 800-53 Rev 5 | Low: 125, Mod: 319, High: 410 controls |
+| CMMC | NIST 800-171 | L1: 17, L2: 110, L3: 134 practices |
 
 ---
 
-### 3. Terraform Architect Agent (`/architect`)
+### 4. Terraform Architect Agent (`/architect`)
 
-**Purpose:** Module design, reusability patterns, Azure best practices
+**Purpose:** Module design, reusability patterns, cloud best practices
 
 **Persona:**
-> You are a senior Terraform architect specializing in Azure infrastructure. You design modular, reusable Terraform code that can be adapted for multiple clients. You understand Azure Landing Zone patterns, state management best practices, and provider compatibility. You enforce coding standards and ensure infrastructure is well-documented.
+> You are a senior Terraform architect specializing in compliant infrastructure. You design modular, reusable Terraform code that can be adapted for multiple clients. Your expertise adapts based on the configured cloud provider (Azure Landing Zone, AWS Well-Architected, or GCP Foundation patterns).
 
 **Responsibilities:**
-- Ensure modules follow established patterns
+- Ensure modules follow established patterns for the configured cloud
 - Review variable/output conventions
 - Validate module composability for multi-client reuse
 - Guide state management practices
-- Enforce naming conventions
-- Design module interfaces for extensibility
-- Review provider and version compatibility
+- Enforce naming conventions and compliance tags/labels
 
-**Key Context Files:**
-```
-/modules/*/                    # Existing module implementations
-/infrastructure/main.tf        # Module composition patterns
-/application/main.tf           # Application layer patterns
-/security/main.tf              # Security layer patterns
-/.pre-commit-config.yaml       # Validation hooks
-/Makefile                      # Standard operations
-```
+**Cloud-Specific Patterns:**
 
-**Module Standards:**
-```hcl
-# Naming Conventions
-resource "azurerm_resource" "this" {
-  name = "${var.project_name}-${var.environment}-resourcetype"
-
-  tags = merge(var.tags, {
-    Environment         = var.environment
-    ComplianceFramework = "GovRAMP"
-    ManagedBy          = "Terraform"
-  })
-}
-
-# Required Variables
-variable "project_name" {
-  description = "Project name for resource naming"
-  type        = string
-}
-
-variable "environment" {
-  description = "Environment (dev, staging, prod)"
-  type        = string
-}
-
-variable "tags" {
-  description = "Additional tags to apply"
-  type        = map(string)
-  default     = {}
-}
-
-# Required Outputs
-output "id" {
-  description = "Resource ID"
-  value       = azurerm_resource.this.id
-}
-
-output "name" {
-  description = "Resource name"
-  value       = azurerm_resource.this.name
-}
-```
-
-**Multi-Client Patterns:**
-1. **Environment Variables** - Use `.tfvars` files per client/environment
-2. **Feature Flags** - Use boolean variables to enable/disable optional features
-3. **Module Composition** - Keep modules focused, compose in root modules
-4. **State Isolation** - Separate state files per client and layer
+| Aspect | Azure | AWS | GCP |
+|--------|-------|-----|-----|
+| Provider | azurerm | aws | google |
+| Region var | location | region | region |
+| Grouping | resource_group_name | tags | project_id |
+| Metadata | tags | tags | labels (lowercase) |
+| Secrets | Key Vault | Secrets Manager | Secret Manager |
+| Logging | Log Analytics | CloudWatch | Cloud Logging |
 
 ---
 
-### 4. Security Reviewer Agent (`/security`)
+### 5. Security Reviewer Agent (`/security`)
 
 **Purpose:** Security vulnerability identification, secure configuration
 
 **Persona:**
-> You are a senior security engineer specializing in cloud security and secure infrastructure design. You identify vulnerabilities, validate security configurations, and ensure defense-in-depth patterns. You understand OWASP, CIS benchmarks, and Azure security best practices. You review code with a security-first mindset.
+> You are a senior security engineer specializing in cloud security. You identify vulnerabilities, validate security configurations, and ensure defense-in-depth patterns. Your expertise adapts based on the configured cloud (Azure CIS Benchmark, AWS Foundational Security, GCP Security Baselines).
 
 **Responsibilities:**
 - Review code for security vulnerabilities
 - Validate encryption at rest and in transit
-- Check for private endpoints vs public access
-- Validate NSG rules and network isolation
+- Check for private connectivity vs public access
+- Validate network rules and isolation
 - Check for exposed secrets or sensitive data
-- Review `.trivyignore` entries for risk acceptance documentation
-- Ensure defense-in-depth patterns
-- Validate logging and monitoring configurations
+- Review logging and monitoring configurations
 
-**Key Context Files:**
-```
-/modules/defender/main.tf              # Defender configurations
-/modules/sentinel/main.tf              # SIEM/SOAR configurations
-/modules/network-security-group/main.tf # NSG patterns
-/modules/key-vault/main.tf             # Secrets management
-/.trivyignore                          # Accepted risks
-/docs/risk-assessment.md               # Risk register
-/docs/incident-response-plan.md        # IR procedures
-```
-
-**Security Checklist:**
-```markdown
-## Security Review Checklist
-
-### Encryption
-- [ ] TLS 1.2+ enforced for all communications
-- [ ] AES-256 encryption at rest
-- [ ] Key Vault for secrets management
-- [ ] Customer-managed keys where required
-
-### Network Isolation
-- [ ] Private endpoints for PaaS services
-- [ ] No public network access
-- [ ] NSG rules follow least-privilege
-- [ ] Subnet isolation with purpose-specific subnets
-
-### Access Control
-- [ ] RBAC with least-privilege
-- [ ] No standing admin access
-- [ ] Managed identities (no service account keys)
-- [ ] MFA required for privileged access
-
-### Logging & Monitoring
-- [ ] Diagnostic settings on all resources
-- [ ] Log Analytics workspace integration
-- [ ] 90-day minimum retention
-- [ ] Sentinel for SIEM/SOAR
-
-### Vulnerability Management
-- [ ] Defender for Cloud enabled
-- [ ] Vulnerability assessment configured
-- [ ] Trivy scan passes (or documented exceptions)
-```
-
-**Risk Acceptance Format:**
-```markdown
-## Risk Acceptance: [RISK-ID]
-
-**Finding:** [Description of the security finding]
-**Severity:** [Critical/High/Medium/Low]
-**Affected Resource:** [Resource type and name]
-
-**Business Justification:**
-[Why this risk is being accepted]
-
-**Compensating Controls:**
-1. [Control 1]
-2. [Control 2]
-
-**Review Date:** [Date for re-evaluation]
-**Approved By:** [Name/Role]
-```
+**Security Checklist (All Clouds):**
+- [ ] No hardcoded secrets
+- [ ] Encryption at rest (CMK/KMS/CMEK)
+- [ ] TLS 1.2+ enforced
+- [ ] Public access disabled
+- [ ] Audit logging configured
+- [ ] Least privilege IAM/RBAC
+- [ ] Private connectivity enabled
 
 ---
 
-### 5. Documentation Agent (`/docs`)
+### 6. Documentation Agent (`/docs`)
 
-**Purpose:** GovRAMP documentation maintenance, SSP updates
+**Purpose:** Compliance documentation maintenance, SSP updates
 
 **Persona:**
-> You are a technical writer specializing in GovRAMP/FedRAMP compliance documentation. You understand SSP structure, policy document requirements, and evidence collection. You maintain documentation alignment with infrastructure changes and ensure audit readiness.
+> You are a technical writer specializing in compliance documentation. You understand SSP structure, policy document requirements, and evidence collection. Your expertise adapts: FedRAMP/GovRAMP use NIST 800-53 SSP structure; CMMC uses NIST 800-171 SSP with CUI boundary focus.
 
 **Responsibilities:**
 - Keep SSP aligned with infrastructure changes
@@ -348,162 +262,86 @@ output "name" {
 - Maintain module README files with control mappings
 - Generate compliance evidence documentation
 - Update network diagrams and architecture docs
-- Track documentation version control
-- Prepare authorization package materials
 
-**Key Context Files:**
-```
-/docs/*.md                    # All documentation
-/docs/policies/*.md           # 11 policy documents
-/modules/*/README.md          # Module documentation
-/network-diagram.md           # Architecture diagrams
-/README.md                    # Main documentation
-```
+**SSP Structures:**
 
-**SSP Section Structure:**
-```markdown
-1. Information System Name/Title
-2. Information System Categorization
-3. Information System Owner
-4. Authorizing Official
-5. Other Designated Contacts
-6. Assignment of Security Responsibility
-7. Information System Operational Status
-8. Information System Type
-9. General System Description
-10. System Environment
-11. System Interconnections
-12. Laws, Regulations, and Policies
-13. Minimum Security Controls
-    13.1 Access Control (AC)
-    13.2 Audit and Accountability (AU)
-    ...
-14. Appendices
-    A. Network Diagram
-    B. Data Flow Diagram
-    C. Ports, Protocols, Services
-    D. Cryptographic Modules
-```
-
-**Documentation Standards:**
-- Use consistent formatting and terminology
-- Include version control metadata
-- Reference specific control IDs
-- Provide evidence locations for auditors
-- Update dates when documents change
+| FedRAMP/GovRAMP | CMMC |
+|-----------------|------|
+| Section 13.X (Control Families) | Section 3.X (Security Requirements) |
+| FIPS 199 Categorization | CUI Boundary Description |
+| Appendix A (Network Diagram) | Appendix A (Network Topology) |
+| Appendix C (Ports/Protocols) | Appendix C (Asset Inventory) |
 
 ---
 
-### 6. CI/CD Operations Agent (`/cicd`)
+### 7. CI/CD Operations Agent (`/cicd`)
 
-**Purpose:** Pipeline management, deployment operations, workflow optimization
+**Purpose:** Pipeline management, deployment operations
 
 **Persona:**
-> You are a DevOps engineer specializing in secure CI/CD pipelines for infrastructure deployments. You understand GitHub Actions, OIDC authentication, Terraform workflows, and deployment best practices. You troubleshoot pipeline failures and optimize deployment processes.
+> You are a DevOps engineer specializing in secure CI/CD pipelines for infrastructure deployments. You understand GitHub Actions, OIDC authentication for multiple cloud providers, Terraform workflows, and deployment best practices.
 
 **Responsibilities:**
 - Review and optimize GitHub Actions workflows
 - Troubleshoot deployment failures
 - Validate OIDC configuration for secretless auth
 - Manage environment promotions
-- Review PR validation results
-- Guide self-hosted runner configuration
-- Ensure pipeline security (no secrets in logs, proper permissions)
+- Ensure pipeline security
 
-**Key Context Files:**
-```
-/.github/workflows/*.yml       # All workflow files
-/modules/github-runners/       # Self-hosted runner configuration
-/modules/cicd-identity/        # OIDC identity setup
-/bootstrap/                    # Bootstrap configuration
-```
+**OIDC Authentication by Cloud:**
 
-**Workflow Patterns:**
-```yaml
-# Standard PR Validation
-on:
-  pull_request:
-    branches: [main]
-jobs:
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-      - run: terraform init
-      - run: terraform validate
-      - run: terraform plan
-
-# OIDC Authentication
-permissions:
-  id-token: write
-  contents: read
-steps:
-  - uses: azure/login@v2
-    with:
-      client-id: ${{ secrets.AZURE_CLIENT_ID }}
-      tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-      subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-```
+| Cloud | Login Action | Key Parameters |
+|-------|--------------|----------------|
+| Azure | azure/login@v2 | client-id, tenant-id, subscription-id |
+| AWS | aws-actions/configure-aws-credentials@v4 | role-to-assume, aws-region |
+| GCP | google-github-actions/auth@v2 | workload_identity_provider, service_account |
 
 ---
 
 ## Key Workflows
 
-### 1. New Module Creation Workflow
+### 1. New Module Creation Workflow (`/new-module`)
 
 ```
-User: "Create Azure Cosmos DB module"
+User: "Create a secrets management module"
      │
      ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│ Step 1: /architect                                                   │
-│                                                                      │
-│ - Review existing module patterns                                    │
+│ Read Session Context                                                 │
+│ Cloud: [Azure/AWS/GCP] → Use appropriate provider patterns          │
+│ Framework: [FedRAMP/GovRAMP/CMMC] → Use appropriate controls        │
+└─────────────────────────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│ Step 1: Architecture Design                                          │
 │ - Design module interface (variables, outputs)                       │
-│ - Draft initial implementation following conventions                 │
+│ - Use cloud-specific patterns from /examples/{cloud}/               │
 │ - Ensure multi-client reusability                                    │
 └─────────────────────────────────────────────────────────────────────┘
      │
      ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│ Step 2: /compliance                                                  │
-│                                                                      │
-│ - Map module to NIST 800-53 controls                                │
-│ - Identify required security settings for compliance                 │
-│ - Add GovRAMP compliance tags                                        │
+│ Step 2: Compliance Implementation                                    │
+│ - Map to framework controls (NIST 800-53 or 800-171)                │
+│ - Add compliance tags/labels                                         │
 │ - Add control implementation comments                                │
-│ - Suggest SSP updates                                                │
 └─────────────────────────────────────────────────────────────────────┘
      │
      ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│ Step 3: /security                                                    │
-│                                                                      │
-│ - Validate encryption at rest configuration                          │
-│ - Check private endpoint setup                                       │
-│ - Review network access rules                                        │
-│ - Verify diagnostic settings for logging                            │
-│ - Identify any security gaps                                         │
+│ Step 3: Security Hardening                                           │
+│ - Validate encryption configuration                                  │
+│ - Check private connectivity setup                                   │
+│ - Review access control settings                                     │
 └─────────────────────────────────────────────────────────────────────┘
      │
      ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│ Step 4: /docs                                                        │
-│                                                                      │
+│ Step 4: Documentation                                                │
 │ - Create module README with usage examples                           │
 │ - Document control implementations                                   │
-│ - Update SSP if new controls addressed                               │
-│ - Update gap analysis if gaps closed                                 │
-└─────────────────────────────────────────────────────────────────────┘
-     │
-     ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│ Step 5: /cicd                                                        │
-│                                                                      │
-│ - Run terraform validate                                             │
-│ - Run Trivy security scan                                            │
-│ - Prepare for PR workflow                                            │
+│ - Identify SSP sections to update                                    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -516,17 +354,9 @@ User: "Create Azure Cosmos DB module"
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    Automated CI/CD Pipeline                          │
-│                                                                      │
-│   - terraform fmt --check                                            │
-│   - terraform validate                                               │
-│   - terraform plan                                                   │
-│   - trivy config scan                                                │
-│   - tflint                                                           │
+│                    Read Session Context                              │
+│     Cloud: [Azure/AWS/GCP] | Framework: [FedRAMP/GovRAMP/CMMC]      │
 └─────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-                    User invokes: /review-pr
                                 │
         ┌───────────────────────┼───────────────────────┐
         │                       │                       │
@@ -534,10 +364,9 @@ User: "Create Azure Cosmos DB module"
 ┌───────────────┐       ┌───────────────┐       ┌───────────────┐
 │   /security   │       │  /compliance  │       │  /architect   │
 │               │       │               │       │               │
-│ - Vulns       │       │ - Control     │       │ - Patterns    │
-│ - Secrets     │       │   mapping     │       │ - Conventions │
-│ - Config      │       │ - Gap check   │       │ - Reusability │
-│ - Encryption  │       │ - SSP impact  │       │ - State mgmt  │
+│ - Cloud-      │       │ - Framework-  │       │ - Cloud-      │
+│   specific    │       │   specific    │       │   specific    │
+│   checks      │       │   controls    │       │   patterns    │
 └───────┬───────┘       └───────┬───────┘       └───────┬───────┘
         │                       │                       │
         └───────────────────────┼───────────────────────┘
@@ -546,19 +375,14 @@ User: "Create Azure Cosmos DB module"
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    Consolidated Review Report                        │
 │                                                                      │
-│   ## Security Findings                                               │
-│   - [Critical/High/Medium/Low items]                                │
+│   Session Context: [Cloud] + [Framework] [Level]                    │
 │                                                                      │
-│   ## Compliance Impact                                               │
-│   - [Control mappings and gaps]                                      │
+│   ## Security Findings (cloud-specific)                             │
+│   ## Compliance Impact (framework-specific)                         │
+│   ## Architecture Review (cloud-specific)                           │
+│   ## Documentation Updates                                           │
 │                                                                      │
-│   ## Architecture Review                                             │
-│   - [Pattern adherence, suggestions]                                 │
-│                                                                      │
-│   ## Documentation Updates Needed                                    │
-│   - [SSP sections, READMEs]                                         │
-│                                                                      │
-│   ## Verdict: [Approve / Request Changes]                           │
+│   Verdict: [Approve / Request Changes]                              │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -567,66 +391,47 @@ User: "Create Azure Cosmos DB module"
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │              User provides SOW document                              │
-│              "Analyze this SOW for GovRAMP project"                  │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│ Step 1: /pm - Parse SOW                                              │
-│                                                                      │
-│ Extract:                                                             │
-│ - Scope of work                                                      │
+│ Read Session Context                                                 │
+│ Framework: [FedRAMP/GovRAMP/CMMC] → Use appropriate phases          │
+└─────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│ Parse SOW                                                            │
+│ - Scope of work and boundaries                                       │
 │ - Deliverables and acceptance criteria                               │
-│ - Timeline and milestones                                            │
 │ - Resource requirements                                              │
 │ - Assumptions and constraints                                        │
-│ - Pricing/budget considerations                                      │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│ Step 2: /pm - Map to Infrastructure                                  │
+│ Map to Framework Phases                                              │
 │                                                                      │
-│ Analyze:                                                             │
-│ - Which modules already exist?                                       │
-│ - What new modules need creation?                                    │
-│ - How does this align with gap analysis?                            │
-│ - What's the implementation complexity?                              │
-└─────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│ Step 3: /compliance - Validate Requirements                          │
-│                                                                      │
-│ - Map SOW requirements to GovRAMP controls                          │
-│ - Identify compliance implications                                   │
-│ - Highlight any gaps the SOW doesn't address                        │
-│ - Recommend additional scope if needed                               │
+│ FedRAMP/GovRAMP:                 CMMC:                              │
+│ - Preparation                    - Gap Assessment                    │
+│ - Readiness Assessment           - Remediation                       │
+│ - Full Security Assessment       - Assessment                        │
+│ - Authorization                  - Certification                     │
+│ - Continuous Monitoring          - Annual Affirmation                │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        Project Brief Output                          │
 │                                                                      │
+│   Session Context: [Cloud] + [Framework] [Level]                    │
+│   Control/Practice Count: [Number]                                  │
+│                                                                      │
 │   ## Executive Summary                                               │
-│   [High-level overview]                                              │
-│                                                                      │
 │   ## Scope Analysis                                                  │
-│   - In Scope: [items]                                                │
-│   - Out of Scope: [items]                                            │
-│   - Assumptions: [list]                                              │
-│                                                                      │
 │   ## Deliverables Mapping                                            │
-│   | SOW Deliverable | Infrastructure Component | Status |           │
-│                                                                      │
-│   ## GovRAMP Control Coverage                                        │
-│   [Control families addressed by this SOW]                          │
-│                                                                      │
 │   ## Risk Assessment                                                 │
-│   [Identified risks and mitigations]                                │
-│                                                                      │
-│   ## Recommended Approach                                            │
-│   [Phased implementation plan]                                       │
+│   ## Recommended Phases                                              │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -637,23 +442,49 @@ User: "Create Azure Cosmos DB module"
 ### Directory Structure
 
 ```
-ai-govramp-workflow/
+compliance-workflow/
 ├── CLAUDE.md                              # Main project configuration
 ├── agentic-plan.md                        # This document
+├── README.md                              # Repository documentation
 ├── .claude/
-│   └── skills/                            # Agent skill definitions
-│       ├── pm.md                          # Project Manager
-│       ├── compliance.md                  # GovRAMP Compliance
-│       ├── architect.md                   # Terraform Architect
-│       ├── security.md                    # Security Reviewer
-│       ├── docs.md                        # Documentation
-│       ├── cicd.md                        # CI/CD Operations
-│       ├── review-pr.md                   # Compound: PR Review
-│       └── new-module.md                  # Compound: New Module
-├── docs/
-│   └── sow/                               # SOW documents directory
-│       └── README.md
-└── README.md                              # Repository documentation
+│   ├── skills/                            # Agent skill definitions
+│   │   ├── init.md                        # Session Configuration
+│   │   ├── pm.md                          # Project Manager
+│   │   ├── compliance.md                  # Compliance Expert
+│   │   ├── architect.md                   # Terraform Architect
+│   │   ├── security.md                    # Security Reviewer
+│   │   ├── docs.md                        # Documentation
+│   │   ├── cicd.md                        # CI/CD Operations
+│   │   ├── review-pr.md                   # Compound: PR Review
+│   │   └── new-module.md                  # Compound: New Module
+│   ├── data/
+│   │   ├── frameworks/                    # Framework configuration
+│   │   │   ├── fedramp.yaml
+│   │   │   ├── govramp.yaml
+│   │   │   └── cmmc.yaml
+│   │   └── clouds/                        # Cloud provider configuration
+│   │       ├── azure.yaml
+│   │       ├── aws.yaml
+│   │       └── gcp.yaml
+│   └── session-context.md                 # Current session (created by /init)
+├── examples/
+│   ├── azure/                             # Azure Terraform patterns
+│   │   ├── encryption.tf
+│   │   ├── logging.tf
+│   │   ├── network-isolation.tf
+│   │   └── cicd-auth.yaml
+│   ├── aws/                               # AWS Terraform patterns
+│   │   ├── encryption.tf
+│   │   ├── logging.tf
+│   │   ├── network-isolation.tf
+│   │   └── cicd-auth.yaml
+│   └── gcp/                               # GCP Terraform patterns
+│       ├── encryption.tf
+│       ├── logging.tf
+│       ├── network-isolation.tf
+│       └── cicd-auth.yaml
+└── docs/
+    └── sow/                               # SOW documents directory
 ```
 
 ### Skill File Format
@@ -668,15 +499,21 @@ description: Brief description for Claude Code
 
 ## Role and Persona
 
-[Detailed persona description]
+[Detailed persona description - adapts to session context]
+
+## Required Context
+
+**CRITICAL: Before responding, you MUST read the session context:**
+
+1. Read `/.claude/session-context.md` - Current engagement configuration
+2. Read appropriate framework data file
+3. Read appropriate cloud data file
+
+If no session context exists, inform the user to run `/init` first.
 
 ## Responsibilities
 
 [List of responsibilities]
-
-## Required Context
-
-[Files to read before responding]
 
 ## Instructions
 
@@ -689,98 +526,176 @@ description: Brief description for Claude Code
 
 ---
 
-## Control Family Reference
+## Control Reference
 
-### Quick Reference: NIST 800-53 Rev 5 Families
+### NIST 800-53 Rev 5 (FedRAMP/GovRAMP)
 
-| ID | Family | Count | Primary Agent |
-|----|--------|-------|---------------|
-| AC | Access Control | 25 | /compliance, /security |
-| AU | Audit and Accountability | 16 | /compliance, /cicd |
-| AT | Awareness and Training | 5 | /compliance, /docs |
-| CA | Assessment, Authorization, Monitoring | 9 | /compliance, /pm |
-| CM | Configuration Management | 11 | /architect, /compliance |
-| CP | Contingency Planning | 13 | /compliance, /docs |
-| IA | Identification and Authentication | 11 | /security, /compliance |
-| IR | Incident Response | 10 | /security, /compliance |
-| MA | Maintenance | 6 | /compliance (mostly inherited) |
-| MP | Media Protection | 8 | /security, /compliance |
-| PE | Physical and Environmental | 20 | /compliance (inherited) |
-| PL | Planning | 9 | /pm, /docs |
-| PS | Personnel Security | 8 | /compliance, /pm |
-| RA | Risk Assessment | 6 | /security, /compliance |
-| SA | System and Services Acquisition | 22 | /compliance (mostly inherited) |
-| SC | System and Communications Protection | 44 | /security, /architect |
-| SI | System and Information Integrity | 16 | /security, /compliance |
+| ID | Family | Primary Agent |
+|----|--------|---------------|
+| AC | Access Control | /compliance, /security |
+| AU | Audit and Accountability | /compliance, /cicd |
+| AT | Awareness and Training | /compliance, /docs |
+| CA | Assessment, Authorization, Monitoring | /compliance, /pm |
+| CM | Configuration Management | /architect, /compliance |
+| CP | Contingency Planning | /compliance, /docs |
+| IA | Identification and Authentication | /security, /compliance |
+| IR | Incident Response | /security, /compliance |
+| MA | Maintenance | /compliance |
+| MP | Media Protection | /security, /compliance |
+| PE | Physical and Environmental | /compliance (inherited) |
+| PL | Planning | /pm, /docs |
+| PS | Personnel Security | /compliance, /pm |
+| RA | Risk Assessment | /security, /compliance |
+| SA | System and Services Acquisition | /compliance |
+| SC | System and Communications Protection | /security, /architect |
+| SI | System and Information Integrity | /security, /compliance |
 
-### GovRAMP Authorization Levels
+### NIST 800-171 (CMMC)
 
-| Level | Controls | Description |
-|-------|----------|-------------|
-| Snapshot | 40 | Cyber NIST baseline |
-| Core Status | 60 | Core security controls |
-| Ready Status | 80 | Preparation for authorization |
-| Authorized | 319 | Full GovRAMP Moderate |
+| ID | Domain | Primary Agent |
+|----|--------|---------------|
+| 3.1 | Access Control | /compliance, /security |
+| 3.2 | Awareness and Training | /compliance, /docs |
+| 3.3 | Audit and Accountability | /compliance, /cicd |
+| 3.4 | Configuration Management | /architect, /compliance |
+| 3.5 | Identification and Authentication | /security, /compliance |
+| 3.6 | Incident Response | /security, /compliance |
+| 3.7 | Maintenance | /compliance |
+| 3.8 | Media Protection | /security, /compliance |
+| 3.9 | Personnel Security | /compliance, /pm |
+| 3.10 | Physical Protection | /compliance (inherited) |
+| 3.11 | Risk Assessment | /security, /compliance |
+| 3.12 | Security Assessment | /compliance, /pm |
+| 3.13 | System and Communications Protection | /security, /architect |
+| 3.14 | System and Information Integrity | /security, /compliance |
 
 ---
 
 ## Usage Examples
 
-### Example 1: Starting a New Client Project
+### Example 1: Starting a New Engagement
 
 ```
-User: I have a new SOW from Acme Corp for a GovRAMP deployment.
-      Can you analyze it and create a project plan?
+User: /init
 
-/pm: [Reads SOW, creates project brief with phases, deliverables,
-      and control mapping]
+Agent: I'll help you configure this compliance session.
+
+       Cloud Provider?
+       > Azure
+
+       Compliance Framework?
+       > FedRAMP
+
+       Baseline Level?
+       > Moderate
+
+       Session configured:
+       - Cloud: Azure (azurerm)
+       - Framework: FedRAMP Moderate
+       - Controls: 325
 ```
 
-### Example 2: Creating a New Module
+### Example 2: Creating a Module (Azure + FedRAMP)
 
 ```
-User: I need to add Azure Event Hub to our infrastructure.
+User: /new-module I need to add Azure Cosmos DB to our infrastructure
 
-/new-module: [Invokes architect -> compliance -> security -> docs
-              workflow to create compliant module]
+Agent: [Reads session context: Azure + FedRAMP Moderate]
+
+       Creating FedRAMP-compliant Azure Cosmos DB module...
+
+       - Using azurerm_cosmosdb_account resource
+       - Implementing SC-8 (TLS 1.2), SC-28 (encryption)
+       - Adding azurerm_monitor_diagnostic_setting for AU-2/AU-12
+       - Configuring private endpoint for SC-7/AC-4
+       - Applying FedRAMP compliance tags
 ```
 
-### Example 3: Compliance Question
+### Example 3: Creating a Module (AWS + CMMC)
 
 ```
-User: Does our current Sentinel configuration satisfy AU-6?
+User: /new-module I need to add DynamoDB to our infrastructure
 
-/compliance: [Reviews sentinel/main.tf against AU-6 requirements,
-              provides gap analysis if any]
+Agent: [Reads session context: AWS + CMMC Level 2]
+
+       Creating CMMC L2-compliant AWS DynamoDB module...
+
+       - Using aws_dynamodb_table resource
+       - Implementing 3.13.8 (TLS 1.2), 3.13.16 (KMS encryption)
+       - Adding aws_cloudwatch_log_group for 3.3.1/3.3.2
+       - Configuring VPC endpoint for 3.13.1/3.1.3
+       - Applying CMMC compliance tags
 ```
 
-### Example 4: PR Review
+### Example 4: PR Review (GCP + GovRAMP)
 
 ```
-User: Please review PR #42 which adds the new API Management module.
+User: /review-pr Review PR #42 which adds the Cloud SQL module
 
-/review-pr: [Provides consolidated review from security, compliance,
-             architect, and docs perspectives]
+Agent: [Reads session context: GCP + GovRAMP High]
+
+       ## PR Review: #42 - Cloud SQL Module
+
+       Session Context: GCP + GovRAMP High (410 controls)
+
+       ## Security Findings
+       - google_sql_database_instance has public IP enabled ❌
+
+       ## Compliance Impact
+       - SC-7 (Boundary Protection): FAIL - requires private IP
+
+       ## Architecture Review
+       - Labels are lowercase: ✓
+       - project_id variable present: ✓
+
+       Verdict: Request Changes
 ```
 
-### Example 5: Deployment Issue
+### Example 5: SOW Analysis
 
 ```
-User: The terraform apply failed with an OIDC error.
+User: /pm Analyze the attached SOW for a CMMC Level 2 project
 
-/cicd: [Analyzes error, reviews OIDC configuration, provides
-        troubleshooting steps]
+Agent: [Reads session context: confirms CMMC Level 2]
+
+       ## SOW Analysis
+
+       Session Context: CMMC Level 2 (110 practices)
+
+       ### Scope Analysis
+       - In Scope: CUI boundary definition, SSP creation, technical controls
+       - Out of Scope: C3PAO assessment (client responsibility)
+
+       ### Practice Coverage
+       This SOW addresses 85/110 practices across:
+       - Access Control (3.1): 15 practices
+       - System Protection (3.13): 12 practices
+       - Audit (3.3): 9 practices
+
+       ### Recommended Phases
+       1. Gap Assessment
+       2. Remediation
+       3. Self-Assessment Preparation
 ```
 
 ---
 
-## Appendix: GovRAMP Resources
+## Appendix: Resources
 
+### FedRAMP
+- [FedRAMP Official Website](https://www.fedramp.gov/)
+- [FedRAMP Authorization Boundary Guidance](https://www.fedramp.gov/assets/resources/documents/FedRAMP_Authorization_Boundary_Guidance.pdf)
+
+### GovRAMP
 - [GovRAMP Official Website](https://govramp.org/)
 - [GovRAMP Rev. 5 Templates](https://govramp.org/rev-5-templates-and-resources/)
-- [StateRAMP Security Assessment Framework 4.0](https://govramp.org/wp-content/uploads/2025/02/StateRAMP-Security-Assessment-Framework-4.0.pdf)
+
+### CMMC
+- [CMMC Official Website](https://dodcio.defense.gov/CMMC/)
+- [NIST SP 800-171 Rev. 2](https://csrc.nist.gov/publications/detail/sp/800-171/rev-2/final)
+
+### General
 - [NIST SP 800-53 Rev. 5](https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final)
-- [NIST SP 800-60 Vol. 1](https://csrc.nist.gov/publications/detail/sp/800-60/vol-1-rev-1/final)
 
 ---
 
@@ -789,3 +704,4 @@ User: The terraform apply failed with an OIDC error.
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-02-25 | Claude Code | Initial agent system design |
+| 2.0 | 2026-02-27 | Claude Code | Multi-cloud, multi-framework refactor |

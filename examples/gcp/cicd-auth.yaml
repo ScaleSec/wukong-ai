@@ -1,0 +1,360 @@
+# GCP CI/CD Authentication Patterns
+# GitHub Actions with Workload Identity Federation (Secretless Authentication)
+
+# ==============================================================================
+# PR Validation Workflow
+# ==============================================================================
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main]
+
+# Workload Identity Federation requires these permissions
+permissions:
+  id-token: write   # Required for OIDC token request
+  contents: read    # Required for checkout
+  pull-requests: write  # Required for PR comments
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # IA-2: Workload Identity Federation (no secrets stored)
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      # CM-3: Configuration change validation
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+  # RA-5: Vulnerability scanning
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy Config Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+# ==============================================================================
+# Deployment Workflow
+# ==============================================================================
+---
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options: [dev, staging, prod]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # CM-3: Environment protection for change control
+    environment: ${{ inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # IA-2: Workload Identity Federation
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: 'access_token'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      # AU-12: Audit record of planned changes
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan \
+            -var-file="environments/${{ inputs.environment || 'dev' }}.tfvars" \
+            -out=tfplan
+
+      # CM-3: Apply approved changes
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+
+# ==============================================================================
+# GCP Workload Identity Federation Setup (Terraform)
+# ==============================================================================
+# This Terraform creates the Workload Identity Pool and Provider for GitHub Actions
+---
+# terraform/cicd-identity/main.tf
+
+# Workload Identity Pool
+resource "google_iam_workload_identity_pool" "github" {
+  project                   = var.project_id
+  workload_identity_pool_id = "${var.project_name}-github-pool"
+  display_name              = "GitHub Actions Pool"
+  description               = "Workload Identity Pool for GitHub Actions"
+}
+
+# Workload Identity Provider for GitHub
+resource "google_iam_workload_identity_pool_provider" "github" {
+  project                            = var.project_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github-provider"
+  display_name                       = "GitHub Provider"
+
+  # GitHub OIDC configuration
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+
+  # Attribute mapping
+  attribute_mapping = {
+    "google.subject"       = "assertion.sub"
+    "attribute.actor"      = "assertion.actor"
+    "attribute.repository" = "assertion.repository"
+    "attribute.ref"        = "assertion.ref"
+  }
+
+  # AC-6: Restrict to specific repository
+  attribute_condition = "assertion.repository == '${var.github_org}/${var.github_repo}'"
+}
+
+# Service Account for GitHub Actions
+resource "google_service_account" "github_actions" {
+  project      = var.project_id
+  account_id   = "${var.project_name}-github-actions"
+  display_name = "GitHub Actions Service Account"
+  description  = "Service account for GitHub Actions CI/CD"
+}
+
+# Allow GitHub Actions to impersonate the service account
+resource "google_service_account_iam_member" "github_workload_identity" {
+  service_account_id = google_service_account.github_actions.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_org}/${var.github_repo}"
+}
+
+# AC-6: Least privilege - Custom role for Terraform operations
+resource "google_project_iam_custom_role" "terraform" {
+  project     = var.project_id
+  role_id     = "${replace(var.project_name, "-", "_")}_terraform"
+  title       = "Terraform Operator"
+  description = "Custom role for Terraform operations"
+
+  permissions = [
+    # Compute
+    "compute.instances.create",
+    "compute.instances.delete",
+    "compute.instances.get",
+    "compute.instances.list",
+    "compute.networks.create",
+    "compute.networks.delete",
+    "compute.networks.get",
+    "compute.subnetworks.create",
+    "compute.subnetworks.delete",
+    "compute.subnetworks.get",
+    "compute.firewalls.create",
+    "compute.firewalls.delete",
+    "compute.firewalls.get",
+
+    # Storage
+    "storage.buckets.create",
+    "storage.buckets.delete",
+    "storage.buckets.get",
+    "storage.buckets.update",
+    "storage.objects.create",
+    "storage.objects.delete",
+    "storage.objects.get",
+    "storage.objects.list",
+
+    # IAM
+    "iam.serviceAccounts.create",
+    "iam.serviceAccounts.delete",
+    "iam.serviceAccounts.get",
+
+    # KMS
+    "cloudkms.keyRings.create",
+    "cloudkms.keyRings.get",
+    "cloudkms.cryptoKeys.create",
+    "cloudkms.cryptoKeys.get",
+
+    # Logging
+    "logging.sinks.create",
+    "logging.sinks.delete",
+    "logging.sinks.get",
+
+    # Resource Manager
+    "resourcemanager.projects.get",
+  ]
+}
+
+# Assign custom role to service account
+resource "google_project_iam_member" "github_actions_terraform" {
+  project = var.project_id
+  role    = google_project_iam_custom_role.terraform.id
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+# State bucket permissions
+resource "google_storage_bucket_iam_member" "tfstate" {
+  bucket = google_storage_bucket.tfstate.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+# Variables
+variable "project_id" {
+  type = string
+}
+
+variable "project_name" {
+  type = string
+}
+
+variable "github_org" {
+  type = string
+}
+
+variable "github_repo" {
+  type = string
+}
+
+# Outputs for GitHub Secrets
+output "workload_identity_provider" {
+  description = "Set this as GCP_WORKLOAD_IDENTITY_PROVIDER in GitHub Secrets"
+  value       = google_iam_workload_identity_pool_provider.github.name
+}
+
+output "service_account" {
+  description = "Set this as GCP_SERVICE_ACCOUNT in GitHub Secrets"
+  value       = google_service_account.github_actions.email
+}
+
+# ==============================================================================
+# Terraform State Backend
+# ==============================================================================
+---
+# terraform/bootstrap/backend.tf
+
+resource "google_storage_bucket" "tfstate" {
+  name          = "${var.project_name}-tfstate-${var.project_id}"
+  project       = var.project_id
+  location      = var.region
+  storage_class = "STANDARD"
+
+  # SC-28: Encryption with CMEK
+  encryption {
+    default_kms_key_name = google_kms_crypto_key.tfstate.id
+  }
+
+  # SC-7: Block public access
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  # Versioning for state history
+  versioning {
+    enabled = true
+  }
+
+  # Lifecycle rule
+  lifecycle_rule {
+    condition {
+      num_newer_versions = 10
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  labels = {
+    purpose    = "terraform-state"
+    managed-by = "bootstrap"
+  }
+}
+
+# KMS for state encryption
+resource "google_kms_key_ring" "tfstate" {
+  name     = "${var.project_name}-tfstate-keyring"
+  location = var.region
+  project  = var.project_id
+}
+
+resource "google_kms_crypto_key" "tfstate" {
+  name            = "tfstate-key"
+  key_ring        = google_kms_key_ring.tfstate.id
+  purpose         = "ENCRYPT_DECRYPT"
+  rotation_period = "7776000s" # 90 days
+
+  labels = {
+    purpose    = "terraform-state"
+    managed-by = "bootstrap"
+  }
+}
+
+# Grant storage service access to KMS key
+resource "google_kms_crypto_key_iam_member" "tfstate" {
+  crypto_key_id = google_kms_crypto_key.tfstate.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member        = "serviceAccount:service-${data.google_project.current.number}@gs-project-accounts.iam.gserviceaccount.com"
+}
+
+output "backend_config" {
+  value = <<-EOT
+    backend "gcs" {
+      bucket = "${google_storage_bucket.tfstate.name}"
+      prefix = "terraform/state"
+    }
+  EOT
+}
+
+data "google_project" "current" {
+  project_id = var.project_id
+}
+
+variable "region" {
+  type    = string
+  default = "us-east1"
+}

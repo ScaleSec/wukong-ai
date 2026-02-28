@@ -1,15 +1,34 @@
-# AI GovRAMP Workflow
+# Compliance Workflow System
 
-A multi-agent workflow system using Claude Code to help security engineers build and maintain GovRAMP-compliant Azure Landing Zone Terraform codebases.
+**Multi-Cloud, Multi-Framework Agentic Compliance Automation**
+
+A multi-agent workflow system using Claude Code to help security engineers build and maintain compliant cloud infrastructure Terraform codebases.
+
+## Supported Configurations
+
+### Compliance Frameworks
+| Framework | Standard | Levels |
+|-----------|----------|--------|
+| FedRAMP | NIST 800-53 Rev 5 | Low (156), Moderate (325), High (421) |
+| GovRAMP | NIST 800-53 Rev 5 | Low (125), Moderate (319), High (410) |
+| CMMC | NIST 800-171 | Level 1 (17), Level 2 (110), Level 3 (134) |
+
+### Cloud Providers
+| Provider | Terraform Provider | Key Features |
+|----------|-------------------|--------------|
+| Azure | azurerm | Private Endpoints, Log Analytics, Key Vault |
+| AWS | aws | VPC Endpoints, CloudWatch, Secrets Manager |
+| GCP | google | Private Service Connect, Cloud Logging, Secret Manager |
 
 ## Overview
 
-This repository provides specialized Claude Code agents for different aspects of GovRAMP compliance:
+This repository provides specialized Claude Code agents for different aspects of compliance:
 
 | Agent | Command | Purpose |
 |-------|---------|---------|
-| Project Manager | `/pm` | SOW analysis, scope/timeline, deliverable tracking |
-| GovRAMP Compliance | `/compliance` | NIST 800-53 control mapping, gap analysis |
+| Session Config | `/init` | Configure cloud provider and compliance framework |
+| Project Manager | `/pm` | SOW analysis, scope tracking, deliverable management |
+| Compliance Expert | `/compliance` | Control mapping, gap analysis, SSP alignment |
 | Terraform Architect | `/architect` | Module design, patterns, conventions |
 | Security Reviewer | `/security` | Vulnerability review, secure configuration |
 | Documentation | `/docs` | SSP maintenance, policy updates |
@@ -27,23 +46,24 @@ This repository provides specialized Claude Code agents for different aspects of
 ### Prerequisites
 
 - [Claude Code CLI](https://github.com/anthropics/claude-code) installed
-- Access to a GovRAMP infrastructure repository
+- Access to a cloud infrastructure repository
 
 ### Installation
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/your-org/ai-govramp-workflow.git
+   git clone https://github.com/your-org/compliance-workflow.git
    ```
 
-2. Copy the `.claude/skills/` directory to your infrastructure repository:
+2. Copy the required directories to your infrastructure repository:
    ```bash
-   cp -r ai-govramp-workflow/.claude/skills/ your-infra-repo/.claude/skills/
+   cp -r compliance-workflow/.claude/ your-infra-repo/.claude/
+   cp -r compliance-workflow/examples/ your-infra-repo/examples/
    ```
 
-3. Copy the `CLAUDE.md` to your infrastructure repository and customize:
+3. Copy the configuration files:
    ```bash
-   cp ai-govramp-workflow/CLAUDE.md your-infra-repo/CLAUDE.md
+   cp compliance-workflow/CLAUDE.md your-infra-repo/CLAUDE.md
    ```
 
 4. Start Claude Code in your infrastructure repository:
@@ -52,30 +72,48 @@ This repository provides specialized Claude Code agents for different aspects of
    claude
    ```
 
+5. **Configure the session** (required first step):
+   ```
+   /init
+   ```
+
 ## Usage Examples
 
-### Analyze a Statement of Work
+### Configure Your Session
 
 ```
-/pm Please analyze the SOW in docs/sow/client-project.pdf and create a project plan
+/init
+```
+This prompts for cloud provider, compliance framework, and baseline level.
+
+### Create a New Module (Azure + FedRAMP)
+
+```
+/new-module I need to add Azure Cosmos DB to our infrastructure
+```
+
+### Create a New Module (AWS + CMMC)
+
+```
+/new-module I need to add DynamoDB for CUI storage
 ```
 
 ### Review Code for Compliance
 
 ```
-/compliance Review the new cosmos-db module for GovRAMP compliance
-```
-
-### Create a New Module
-
-```
-/new-module I need to add Azure Event Hub to our infrastructure
+/compliance Review the new secrets-manager module
 ```
 
 ### Comprehensive PR Review
 
 ```
-/review-pr Review PR #42 which adds the API Management module
+/review-pr Review PR #42 which adds the API Gateway module
+```
+
+### Analyze a Statement of Work
+
+```
+/pm Analyze the SOW in docs/sow/client-project.pdf
 ```
 
 ### Troubleshoot CI/CD
@@ -84,44 +122,70 @@ This repository provides specialized Claude Code agents for different aspects of
 /cicd The terraform apply failed with an OIDC authentication error
 ```
 
-## Target Compliance
+## Directory Structure
 
-- **Framework:** NIST 800-53 Rev 5
-- **Baseline:** GovRAMP Moderate (319 controls)
-- **Key Control Families:** AC, AU, CM, IA, SC, SI
+```
+compliance-workflow/
+├── CLAUDE.md                    # Project configuration
+├── agentic-plan.md              # Full agent system documentation
+├── README.md                    # This file
+├── .claude/
+│   ├── skills/                  # Agent skill definitions
+│   │   ├── init.md              # Session Configuration
+│   │   ├── pm.md                # Project Manager
+│   │   ├── compliance.md        # Compliance Expert
+│   │   ├── architect.md         # Terraform Architect
+│   │   ├── security.md          # Security Reviewer
+│   │   ├── docs.md              # Documentation
+│   │   ├── cicd.md              # CI/CD Operations
+│   │   ├── review-pr.md         # Compound: PR Review
+│   │   └── new-module.md        # Compound: New Module
+│   ├── data/
+│   │   ├── frameworks/          # Framework configuration
+│   │   │   ├── fedramp.yaml
+│   │   │   ├── govramp.yaml
+│   │   │   └── cmmc.yaml
+│   │   └── clouds/              # Cloud provider configuration
+│   │       ├── azure.yaml
+│   │       ├── aws.yaml
+│   │       └── gcp.yaml
+│   └── session-context.md       # Current session (created by /init)
+├── examples/
+│   ├── azure/                   # Azure Terraform patterns
+│   ├── aws/                     # AWS Terraform patterns
+│   └── gcp/                     # GCP Terraform patterns
+└── docs/
+    └── sow/                     # SOW documents directory
+```
+
+## How It Works
+
+1. **Session Configuration**: Run `/init` to select your cloud provider and compliance framework
+2. **Context-Aware Agents**: All agents read the session context to provide relevant guidance
+3. **Cloud-Specific Patterns**: Examples and patterns adapt to your configured cloud
+4. **Framework-Specific Controls**: Compliance mapping uses the correct standard (800-53 or 800-171)
+
+## Resources
+
+### FedRAMP
+- [FedRAMP Official Website](https://www.fedramp.gov/)
+- [FedRAMP Templates](https://www.fedramp.gov/templates/)
+
+### GovRAMP
+- [GovRAMP Official Website](https://govramp.org/)
+- [GovRAMP Rev. 5 Templates](https://govramp.org/rev-5-templates-and-resources/)
+
+### CMMC
+- [CMMC Official Website](https://dodcio.defense.gov/CMMC/)
+- [NIST SP 800-171](https://csrc.nist.gov/publications/detail/sp/800-171/rev-2/final)
+
+### General
+- [NIST SP 800-53 Rev. 5](https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final)
 
 ## Documentation
 
 - [Full Agent System Design](agentic-plan.md) - Comprehensive documentation of all agents and workflows
 - [CLAUDE.md](CLAUDE.md) - Project configuration and quick reference
-
-## Directory Structure
-
-```
-ai-govramp-workflow/
-├── CLAUDE.md                    # Project configuration
-├── agentic-plan.md              # Full agent system documentation
-├── README.md                    # This file
-├── .claude/
-│   └── skills/                  # Agent skill definitions
-│       ├── pm.md                # Project Manager
-│       ├── compliance.md        # GovRAMP Compliance
-│       ├── architect.md         # Terraform Architect
-│       ├── security.md          # Security Reviewer
-│       ├── docs.md              # Documentation
-│       ├── cicd.md              # CI/CD Operations
-│       ├── review-pr.md         # Compound: PR Review
-│       └── new-module.md        # Compound: New Module
-└── docs/
-    └── sow/                     # SOW documents directory
-        └── README.md
-```
-
-## GovRAMP Resources
-
-- [GovRAMP Official Website](https://govramp.org/)
-- [GovRAMP Rev. 5 Templates](https://govramp.org/rev-5-templates-and-resources/)
-- [NIST SP 800-53 Rev. 5](https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final)
 
 ## License
 

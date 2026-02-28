@@ -1,0 +1,309 @@
+# AWS Cloud Provider Data
+# Amazon Web Services patterns and mappings for compliance infrastructure
+
+name: AWS
+full_name: Amazon Web Services
+provider_prefix: aws
+terraform_provider: hashicorp/aws
+provider_source: "registry.terraform.io/hashicorp/aws"
+
+# Resource organization
+organization:
+  hierarchy:
+    - Organizations
+    - Organizational Units
+    - Accounts
+    - Resources
+  region_variable: region
+  resource_group_concept: false  # AWS uses tags instead
+  tagging_supported: true
+  tag_inheritance: true  # Via AWS Organizations tag policies
+
+# Identity and authentication
+identity:
+  service_identity: IAM Role
+  service_identity_resource: aws_iam_role
+  instance_profile: aws_iam_instance_profile
+  workload_identity: "IAM Roles for Service Accounts (IRSA)"
+  auth_methods:
+    - OIDC with GitHub
+    - IAM User (not recommended)
+    - IAM Role assumption
+  mfa_service: "IAM MFA"
+  directory_service: "AWS IAM Identity Center (SSO)"
+
+# Core services mapping
+services:
+  # Logging and monitoring
+  logging:
+    name: CloudWatch Logs
+    resource: aws_cloudwatch_log_group
+    diagnostic_resource: null  # Built into individual resources
+    retention_config: retention_in_days
+    default_retention: 90
+    cloudtrail: aws_cloudtrail
+    s3_logging: aws_s3_bucket_logging
+
+  monitoring:
+    name: CloudWatch
+    resource: aws_cloudwatch_*
+    alerting: aws_cloudwatch_metric_alarm
+    dashboards: aws_cloudwatch_dashboard
+    log_metric_filter: aws_cloudwatch_log_metric_filter
+
+  siem:
+    name: AWS Security Hub
+    resource: aws_securityhub_*
+    finding_aggregator: aws_securityhub_finding_aggregator
+    guardduty: aws_guardduty_detector
+    detective: aws_detective_graph
+
+  # Secrets and encryption
+  secrets:
+    name: Secrets Manager
+    resource: aws_secretsmanager_secret
+    secret_version: aws_secretsmanager_secret_version
+    rotation: aws_secretsmanager_secret_rotation
+    parameter_store: aws_ssm_parameter  # Alternative for non-rotating secrets
+
+  kms:
+    name: KMS
+    resource: aws_kms_key
+    alias: aws_kms_alias
+    cmk_support: true
+    rotation_config: enable_key_rotation
+    grant: aws_kms_grant
+
+  # Network security
+  network_isolation:
+    name: VPC Endpoint
+    resource: aws_vpc_endpoint
+    private_dns: aws_route53_zone  # Private hosted zone
+    interface_endpoint: "aws_vpc_endpoint (type = Interface)"
+    gateway_endpoint: "aws_vpc_endpoint (type = Gateway)"
+
+  firewall:
+    name: Network Firewall
+    resource: aws_networkfirewall_firewall
+    policy: aws_networkfirewall_firewall_policy
+    rule_group: aws_networkfirewall_rule_group
+
+  network_security:
+    name: Security Group
+    resource: aws_security_group
+    rules: aws_security_group_rule
+    nacl: aws_network_acl
+    flow_logs: aws_flow_log
+
+  waf:
+    name: WAF
+    resource: aws_wafv2_web_acl
+    rule_group: aws_wafv2_rule_group
+    ip_set: aws_wafv2_ip_set
+
+  ddos:
+    name: Shield
+    resource: aws_shield_protection
+    advanced: aws_shield_protection_group
+
+  # Security monitoring
+  security_monitoring:
+    name: AWS Security Hub
+    resource: aws_securityhub_account
+    standards: aws_securityhub_standards_subscription
+    member: aws_securityhub_member
+    available_standards:
+      - "AWS Foundational Security Best Practices"
+      - "CIS AWS Foundations Benchmark"
+      - "PCI DSS"
+      - "NIST 800-53"
+
+  vulnerability_scanning:
+    name: Amazon Inspector
+    resource: aws_inspector2_enabler
+    ecr_scanning: aws_ecr_registry_scanning_configuration
+    ec2_scanning: "Inspector EC2 scanning"
+
+  # Compute
+  compute:
+    ec2: aws_instance
+    asg: aws_autoscaling_group
+    eks: aws_eks_cluster
+    ecs: aws_ecs_cluster
+    lambda: aws_lambda_function
+    fargate: aws_ecs_service  # with launch_type = FARGATE
+    app_runner: aws_apprunner_service
+
+  # Storage
+  storage:
+    s3: aws_s3_bucket
+    efs: aws_efs_file_system
+    fsx: aws_fsx_lustre_file_system
+    encryption_at_rest: "S3 SSE / EBS encryption"
+    cmk_support: aws_s3_bucket_server_side_encryption_configuration
+
+  # Database
+  database:
+    rds: aws_db_instance
+    aurora: aws_rds_cluster
+    dynamodb: aws_dynamodb_table
+    elasticache: aws_elasticache_cluster
+    documentdb: aws_docdb_cluster
+
+# Compliance-specific configurations
+compliance:
+  # Encryption settings
+  encryption:
+    tls_attribute: ssl_policy  # For ALB/ELB
+    tls_value: "ELBSecurityPolicy-TLS13-1-2-2021-06"
+    s3_encryption: aws_s3_bucket_server_side_encryption_configuration
+    ebs_encryption: encrypted
+    rds_encryption: storage_encrypted
+    kms_key_attribute: kms_key_id
+
+  # Network isolation
+  network:
+    public_access_attribute: publicly_accessible  # For RDS
+    s3_public_access: aws_s3_bucket_public_access_block
+    vpc_endpoint_required: true
+
+  # Logging
+  audit:
+    cloudtrail_required: true
+    config_required: true  # AWS Config
+    s3_logging_required: true
+    categories:
+      - Management Events
+      - Data Events
+      - Insights Events
+
+  # Required tags for compliance
+  tags:
+    required:
+      - Environment
+      - ComplianceFramework
+      - ManagedBy
+    template: |
+      tags = merge(var.tags, {
+        Environment         = var.environment
+        ComplianceFramework = var.compliance_framework
+        ManagedBy          = "Terraform"
+      })
+
+# CI/CD integration
+cicd:
+  github_actions:
+    login_action: aws-actions/configure-aws-credentials@v4
+    setup_action: null
+    auth_type: OIDC
+    auth_params:
+      - role-to-assume
+      - aws-region
+    secrets_required:
+      - AWS_ROLE_ARN  # or role-to-assume directly
+    example: |
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+  oidc_setup:
+    provider: "IAM OIDC Provider"
+    identity_provider: aws_iam_openid_connect_provider
+    role_trust_policy: true
+    subject_claims:
+      branch: "repo:{org}/{repo}:ref:refs/heads/{branch}"
+      environment: "repo:{org}/{repo}:environment:{environment}"
+      pull_request: "repo:{org}/{repo}:pull_request"
+    audience: "sts.amazonaws.com"
+    thumbprint: "6938fd4d98bab03faadb97b34396831e3780aea1"  # GitHub OIDC
+
+  terraform_backend:
+    type: s3
+    resources:
+      - aws_s3_bucket
+      - aws_dynamodb_table  # For state locking
+    config: |
+      backend "s3" {
+        bucket         = "tfstate-{account-id}"
+        key            = "terraform.tfstate"
+        region         = "us-east-1"
+        dynamodb_table = "tfstate-lock"
+        encrypt        = true
+      }
+
+# Naming conventions
+naming:
+  pattern: "${var.project_name}-${var.environment}-{suffix}"
+  max_lengths:
+    s3_bucket: 63
+    iam_role: 64
+    lambda_function: 64
+    general: 256
+  allowed_characters:
+    s3_bucket: "lowercase alphanumeric, hyphens, periods"
+    iam_role: "alphanumeric, plus, equals, comma, period, at, underscore, hyphen"
+    general: "alphanumeric, hyphens, underscores"
+  suffixes:
+    s3_bucket: ""  # S3 names are globally unique
+    kms_key: key
+    iam_role: role
+    security_group: sg
+    vpc: vpc
+    subnet: subnet
+
+# Required variables for modules
+required_variables:
+  - name: project_name
+    description: Project name for resource naming
+    type: string
+  - name: environment
+    description: Environment (dev, staging, prod)
+    type: string
+  - name: region
+    description: AWS region for resources
+    type: string
+  - name: tags
+    description: Additional tags to apply
+    type: map(string)
+    default: {}
+
+# Government cloud options
+government_clouds:
+  - name: AWS GovCloud (US-East)
+    region: us-gov-east-1
+    partition: aws-us-gov
+    certifications:
+      - FedRAMP High
+      - DoD IL2-IL5
+      - CJIS
+      - ITAR
+  - name: AWS GovCloud (US-West)
+    region: us-gov-west-1
+    partition: aws-us-gov
+    certifications:
+      - FedRAMP High
+      - DoD IL2-IL5
+      - CJIS
+      - ITAR
+
+# AWS-specific compliance services
+compliance_services:
+  - name: AWS Config
+    resource: aws_config_configuration_recorder
+    rules: aws_config_config_rule
+    conformance_packs: aws_config_conformance_pack
+  - name: AWS CloudTrail
+    resource: aws_cloudtrail
+    organization_trail: true
+    multi_region: true
+  - name: AWS Audit Manager
+    resource: aws_auditmanager_assessment
+    frameworks:
+      - FedRAMP Moderate
+      - NIST 800-53
+      - CIS Benchmark
+  - name: AWS Artifact
+    description: "Compliance reports and agreements"
+    self_service: true

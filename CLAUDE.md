@@ -1,17 +1,39 @@
-# GovRAMP Compliance Workflow System
+# Compliance Workflow System
+
+**Multi-Cloud, Multi-Framework Agentic Compliance Automation**
 
 ## Project Context
 
-This is a multi-agent workflow system for building and maintaining GovRAMP-compliant Azure Landing Zone Terraform codebases. It provides specialized Claude Code agents for compliance, architecture, security, project management, and documentation.
+This is a multi-agent workflow system for building and maintaining compliant cloud infrastructure using Terraform. It provides specialized Claude Code agents for compliance, architecture, security, project management, and documentation.
 
-**Target Compliance:** GovRAMP Moderate (NIST 800-53 Rev 5, 319 controls)
+**Supported Frameworks:**
+- FedRAMP (Low/Moderate/High) - NIST 800-53 Rev 5
+- GovRAMP (Low/Moderate/High) - NIST 800-53 Rev 5
+- CMMC (Level 1/2/3) - NIST 800-171
+
+**Supported Cloud Providers:**
+- Azure (azurerm provider)
+- AWS (aws provider)
+- GCP (google provider)
+
+## Getting Started
+
+### Session Configuration
+
+**Start every engagement with `/init`** to configure:
+1. Cloud provider (Azure, AWS, or GCP)
+2. Compliance framework (FedRAMP, GovRAMP, or CMMC)
+3. Baseline level
+
+This creates a session context file that all agents reference.
 
 ## Available Agents
 
 | Command | Agent | Purpose |
 |---------|-------|---------|
-| `/pm` | Project Manager | SOW analysis, scope/timeline, deliverable tracking |
-| `/compliance` | GovRAMP Compliance | NIST 800-53 control mapping, gap analysis |
+| `/init` | Session Config | Configure cloud provider and compliance framework |
+| `/pm` | Project Manager | SOW analysis, scope tracking, deliverable management |
+| `/compliance` | Compliance Expert | Control mapping, gap analysis, SSP alignment |
 | `/architect` | Terraform Architect | Module design, patterns, conventions |
 | `/security` | Security Reviewer | Vulnerability review, secure configuration |
 | `/docs` | Documentation | SSP maintenance, policy updates |
@@ -26,12 +48,37 @@ This is a multi-agent workflow system for building and maintaining GovRAMP-compl
 
 ## Key Files Reference
 
-When working with client infrastructure repositories, agents should reference:
-
+### Session Context
 ```
-/docs/govramp-gap.md           # Compliance gap analysis
+/.claude/session-context.md     # Current engagement configuration (created by /init)
+```
+
+### Framework Data
+```
+/.claude/data/frameworks/fedramp.yaml   # FedRAMP control data
+/.claude/data/frameworks/govramp.yaml   # GovRAMP control data
+/.claude/data/frameworks/cmmc.yaml      # CMMC practice data
+```
+
+### Cloud Provider Data
+```
+/.claude/data/clouds/azure.yaml   # Azure patterns and mappings
+/.claude/data/clouds/aws.yaml     # AWS patterns and mappings
+/.claude/data/clouds/gcp.yaml     # GCP patterns and mappings
+```
+
+### Cloud-Specific Examples
+```
+/examples/azure/    # Azure Terraform patterns
+/examples/aws/      # AWS Terraform patterns
+/examples/gcp/      # GCP Terraform patterns
+```
+
+### Client Infrastructure (typical structure)
+```
+/docs/gap-analysis.md          # Compliance gap analysis
 /docs/system-security-plan.md  # SSP with control implementations
-/docs/policies/*.md            # Policy documents (AC-1, AU-1, etc.)
+/docs/policies/*.md            # Policy documents
 /docs/poam.md                  # Plan of Action and Milestones
 /docs/risk-assessment.md       # Risk register
 /modules/*/                    # Terraform modules
@@ -42,19 +89,59 @@ When working with client infrastructure repositories, agents should reference:
 
 ### Naming Conventions
 
-- **Directories:** kebab-case (`key-vault`, `network-security-group`)
+- **Directories:** kebab-case (`key-vault`, `kms-key`, `secret-manager`)
 - **Resources:** `${var.project_name}-${var.environment}-resourcetype`
 - **Variables:** snake_case
 - **Files:** `main.tf`, `variables.tf`, `outputs.tf`, `versions.tf`
 
-### Required Tags
+### Required Variables (Cloud-Specific)
 
-All resources must include:
+**Azure:**
+```hcl
+variable "project_name" {}
+variable "environment" {}
+variable "location" {}
+variable "resource_group_name" {}
+variable "compliance_framework" {}
+variable "tags" { default = {} }
+```
+
+**AWS:**
+```hcl
+variable "project_name" {}
+variable "environment" {}
+variable "region" {}
+variable "compliance_framework" {}
+variable "tags" { default = {} }
+```
+
+**GCP:**
+```hcl
+variable "project_name" {}
+variable "project_id" {}
+variable "environment" {}
+variable "region" {}
+variable "compliance_framework" {}
+variable "labels" { default = {} }  # Must be lowercase
+```
+
+### Compliance Tags/Labels
+
+**Azure/AWS (tags):**
 ```hcl
 tags = merge(var.tags, {
   Environment         = var.environment
-  ComplianceFramework = "GovRAMP"
-  ManagedBy          = "Terraform"
+  ComplianceFramework = var.compliance_framework
+  ManagedBy           = "Terraform"
+})
+```
+
+**GCP (labels - lowercase only):**
+```hcl
+labels = merge(var.labels, {
+  environment          = lower(var.environment)
+  compliance-framework = lower(replace(var.compliance_framework, " ", "-"))
+  managed-by           = "terraform"
 })
 ```
 
@@ -70,34 +157,47 @@ output "name" {
 }
 ```
 
-## GovRAMP Compliance Requirements
+## Compliance Requirements
 
-### Always Verify
+### Always Verify (All Frameworks)
 
-1. **Encryption:** TLS 1.2+ in transit, AES-256 at rest
-2. **Network Isolation:** Private endpoints, no public access
-3. **Logging:** Diagnostic settings to Log Analytics, 90-day retention
-4. **Access Control:** RBAC with least privilege, managed identities
-5. **Secrets:** Key Vault for all secrets, no hardcoded credentials
+1. **Encryption:** TLS 1.2+ in transit, encryption at rest with managed keys
+2. **Network Isolation:** Private connectivity, no public access
+3. **Logging:** Audit logging with 90-day minimum retention
+4. **Access Control:** Least privilege, managed/workload identities
+5. **Secrets:** Secrets manager for all credentials, no hardcoded secrets
 
 ### Control Family Focus
 
-| Priority | Family | Key Controls |
-|----------|--------|--------------|
-| Critical | SC | Encryption, network isolation |
-| Critical | AC | RBAC, least privilege |
-| Critical | AU | Logging, monitoring, retention |
-| High | IA | Authentication, MFA, OIDC |
-| High | SI | Defender, vulnerability scanning |
-| High | CM | IaC, change control |
+| Priority | NIST 800-53 | NIST 800-171 | Key Focus |
+|----------|-------------|--------------|-----------|
+| Critical | SC | 3.13 | Encryption, network isolation |
+| Critical | AC | 3.1 | Access control, least privilege |
+| Critical | AU | 3.3 | Logging, monitoring, retention |
+| High | IA | 3.5 | Authentication, MFA, OIDC |
+| High | SI | 3.14 | Security monitoring, vulnerability scanning |
+| High | CM | 3.4 | Configuration management, IaC |
+
+### Framework-Specific Notes
+
+**FedRAMP/GovRAMP:**
+- SSP follows NIST 800-53 Rev 5 structure
+- Authorization phases: Preparation, Readiness, Assessment, Authorization, ConMon
+
+**CMMC:**
+- SSP follows NIST 800-171 structure
+- Must define CUI boundary clearly
+- SPRS score tracking required
+- Assessment type varies by level (Self for L1, C3PAO for L2+)
 
 ## Usage Instructions
 
-1. **New Module:** Use `/new-module` for guided creation with compliance
-2. **PR Review:** Use `/review-pr` before merging any infrastructure changes
-3. **Compliance Check:** Use `/compliance` when unsure about control requirements
-4. **SOW Analysis:** Use `/pm` to analyze new client SOWs
-5. **Security Audit:** Use `/security` for vulnerability assessment
+1. **New Engagement:** Run `/init` to configure cloud and framework
+2. **New Module:** Use `/new-module` for guided creation with compliance
+3. **PR Review:** Use `/review-pr` before merging infrastructure changes
+4. **Compliance Check:** Use `/compliance` for control requirements
+5. **SOW Analysis:** Use `/pm` to analyze client SOWs
+6. **Security Audit:** Use `/security` for vulnerability assessment
 
 ## Documentation
 

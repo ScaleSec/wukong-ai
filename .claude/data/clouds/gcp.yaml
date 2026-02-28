@@ -1,0 +1,327 @@
+# GCP Cloud Provider Data
+# Google Cloud Platform patterns and mappings for compliance infrastructure
+
+name: GCP
+full_name: Google Cloud Platform
+provider_prefix: google
+terraform_provider: hashicorp/google
+provider_source: "registry.terraform.io/hashicorp/google"
+
+# Resource organization
+organization:
+  hierarchy:
+    - Organization
+    - Folders
+    - Projects
+    - Resources
+  region_variable: region
+  zone_variable: zone
+  resource_group_concept: false  # GCP uses projects
+  project_resource: google_project
+  tagging_supported: true
+  label_attribute: labels  # GCP uses "labels" not "tags"
+  tag_inheritance: true  # Via Organization policies
+
+# Identity and authentication
+identity:
+  service_identity: Service Account
+  service_identity_resource: google_service_account
+  workload_identity: "Workload Identity Federation"
+  auth_methods:
+    - Workload Identity Federation
+    - Service Account Key (not recommended)
+    - Service Account impersonation
+  mfa_service: "Google Workspace / Cloud Identity"
+  directory_service: "Cloud Identity"
+
+# Core services mapping
+services:
+  # Logging and monitoring
+  logging:
+    name: Cloud Logging
+    resource: google_logging_project_sink
+    log_bucket: google_logging_project_bucket_config
+    log_view: google_logging_log_view
+    retention_config: retention_days
+    default_retention: 30  # Can extend to 3650
+
+  monitoring:
+    name: Cloud Monitoring
+    resource: google_monitoring_*
+    alerting: google_monitoring_alert_policy
+    notification_channel: google_monitoring_notification_channel
+    dashboards: google_monitoring_dashboard
+    uptime_check: google_monitoring_uptime_check_config
+
+  siem:
+    name: Chronicle Security Operations
+    resource: null  # Managed via Console/API, limited Terraform
+    alternative: "Security Command Center"
+    scc_resource: google_scc_*
+
+  # Secrets and encryption
+  secrets:
+    name: Secret Manager
+    resource: google_secret_manager_secret
+    secret_version: google_secret_manager_secret_version
+    iam: google_secret_manager_secret_iam_*
+
+  kms:
+    name: Cloud KMS
+    resource: google_kms_key_ring
+    crypto_key: google_kms_crypto_key
+    cmk_support: true
+    rotation_config: rotation_period
+    iam: google_kms_crypto_key_iam_*
+
+  # Network security
+  network_isolation:
+    name: Private Service Connect
+    resource: google_compute_service_attachment
+    private_connection: google_service_networking_connection
+    vpc_peering: google_compute_network_peering
+    private_google_access: google_compute_subnetwork  # private_ip_google_access
+
+  firewall:
+    name: Cloud Firewall
+    resource: google_compute_firewall
+    policy: google_compute_network_firewall_policy
+    hierarchical: google_compute_organization_security_policy
+
+  network_security:
+    name: VPC Firewall Rules
+    resource: google_compute_firewall
+    network: google_compute_network
+    subnetwork: google_compute_subnetwork
+    flow_logs: "VPC Flow Logs (on subnetwork)"
+
+  waf:
+    name: Cloud Armor
+    resource: google_compute_security_policy
+    rules: "google_compute_security_policy.rule"
+    edge: google_compute_region_security_policy
+
+  ddos:
+    name: Cloud Armor DDoS Protection
+    resource: google_compute_security_policy
+    advanced: "Cloud Armor Enterprise"
+
+  # Security monitoring
+  security_monitoring:
+    name: Security Command Center
+    resource: google_scc_source
+    notification: google_scc_notification_config
+    findings: google_scc_source_iam_*
+    tiers:
+      - Standard (free)
+      - Premium
+      - Enterprise
+
+  vulnerability_scanning:
+    name: Security Command Center - Web Security Scanner
+    resource: google_scc_project_custom_module
+    container_scanning: "Container Analysis / Artifact Registry scanning"
+    vm_scanning: "VM Manager vulnerability reports"
+
+  # Compute
+  compute:
+    gce: google_compute_instance
+    mig: google_compute_instance_group_manager
+    gke: google_container_cluster
+    cloud_run: google_cloud_run_service
+    cloud_functions: google_cloudfunctions_function
+    app_engine: google_app_engine_application
+
+  # Storage
+  storage:
+    gcs: google_storage_bucket
+    filestore: google_filestore_instance
+    encryption_at_rest: "Google-managed or CMEK"
+    cmk_support: google_storage_bucket  # encryption.default_kms_key_name
+
+  # Database
+  database:
+    cloud_sql: google_sql_database_instance
+    spanner: google_spanner_instance
+    bigtable: google_bigtable_instance
+    firestore: google_firestore_database
+    memorystore: google_redis_instance
+
+# Compliance-specific configurations
+compliance:
+  # Encryption settings
+  encryption:
+    tls_attribute: ssl_policy  # For Load Balancers
+    tls_value: "MODERN"  # or "RESTRICTED"
+    gcs_encryption: encryption
+    sql_encryption: encryption_key_name
+    kms_key_attribute: kms_key_name
+
+  # Network isolation
+  network:
+    public_access_attribute: "depends on service"
+    gcs_public_prevention: public_access_prevention
+    cloud_sql_public: settings.ip_configuration.ipv4_enabled
+    private_google_access: true
+
+  # Logging
+  audit:
+    audit_logging_required: true
+    data_access_logs: google_project_iam_audit_config
+    log_sink_required: true
+    categories:
+      - Admin Activity
+      - Data Access
+      - System Event
+      - Policy Denied
+
+  # Required labels for compliance (GCP uses labels, not tags)
+  tags:
+    attribute_name: labels
+    required:
+      - environment
+      - compliance-framework
+      - managed-by
+    template: |
+      labels = merge(var.labels, {
+        environment          = var.environment
+        compliance-framework = var.compliance_framework
+        managed-by          = "terraform"
+      })
+
+# CI/CD integration
+cicd:
+  github_actions:
+    login_action: google-github-actions/auth@v2
+    setup_action: google-github-actions/setup-gcloud@v2
+    auth_type: Workload Identity Federation
+    auth_params:
+      - workload_identity_provider
+      - service_account
+    secrets_required:
+      - GCP_WORKLOAD_IDENTITY_PROVIDER
+      - GCP_SERVICE_ACCOUNT
+    example: |
+      - name: Authenticate to Google Cloud (Workload Identity)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+  oidc_setup:
+    provider: "Workload Identity Federation"
+    identity_pool: google_iam_workload_identity_pool
+    identity_provider: google_iam_workload_identity_pool_provider
+    service_account_binding: google_service_account_iam_member
+    subject_claims:
+      branch: "repo:{org}/{repo}:ref:refs/heads/{branch}"
+      environment: "repo:{org}/{repo}:environment:{environment}"
+      pull_request: "repo:{org}/{repo}:pull_request"
+    attribute_mapping:
+      google.subject: assertion.sub
+      attribute.actor: assertion.actor
+      attribute.repository: assertion.repository
+
+  terraform_backend:
+    type: gcs
+    resources:
+      - google_storage_bucket
+    config: |
+      backend "gcs" {
+        bucket = "tfstate-{project-id}"
+        prefix = "terraform/state"
+      }
+
+# Naming conventions
+naming:
+  pattern: "${var.project_name}-${var.environment}-{suffix}"
+  max_lengths:
+    gcs_bucket: 63
+    service_account: 30
+    gce_instance: 63
+    general: 63
+  allowed_characters:
+    gcs_bucket: "lowercase alphanumeric, hyphens, underscores, periods"
+    service_account: "lowercase alphanumeric, hyphens"
+    general: "lowercase alphanumeric, hyphens"
+  suffixes:
+    gcs_bucket: ""  # Globally unique
+    service_account: sa
+    kms_keyring: kr
+    kms_key: key
+    vpc: vpc
+    subnet: subnet
+
+# Required variables for modules
+required_variables:
+  - name: project_name
+    description: Project name for resource naming
+    type: string
+  - name: project_id
+    description: GCP project ID
+    type: string
+  - name: environment
+    description: Environment (dev, staging, prod)
+    type: string
+  - name: region
+    description: GCP region for resources
+    type: string
+  - name: labels
+    description: Additional labels to apply
+    type: map(string)
+    default: {}
+
+# Government cloud options
+government_clouds:
+  - name: Google Cloud for Government
+    description: "FedRAMP authorized regions"
+    regions:
+      - us-east4
+      - us-central1
+      - us-west1
+    certifications:
+      - FedRAMP High
+      - DoD IL2
+      - DoD IL4
+      - CJIS
+  - name: Assured Workloads
+    resource: google_assured_workloads_workload
+    compliance_regimes:
+      - FEDRAMP_HIGH
+      - FEDRAMP_MODERATE
+      - IL4
+      - CJIS
+      - HIPAA
+
+# GCP-specific compliance services
+compliance_services:
+  - name: Organization Policies
+    resource: google_organization_policy
+    constraints:
+      - compute.requireOsLogin
+      - compute.disableSerialPortAccess
+      - storage.uniformBucketLevelAccess
+      - iam.disableServiceAccountKeyCreation
+  - name: Access Transparency
+    description: "Logs of Google personnel access"
+    premium: true
+  - name: Access Approval
+    resource: google_access_approval_*
+    description: "Explicit approval for Google support access"
+  - name: Assured Workloads
+    resource: google_assured_workloads_workload
+    description: "Compliance controls for regulated workloads"
+  - name: Certificate Authority Service
+    resource: google_privateca_ca_pool
+    description: "Private PKI for compliance"
+
+# GCP-specific notes
+notes:
+  - "GCP uses 'labels' instead of 'tags' for most resources"
+  - "GCP uses 'project_id' as a key organizational concept"
+  - "Some compliance features require Assured Workloads"
+  - "Service accounts are the primary service identity mechanism"
+  - "Workload Identity Federation is the recommended auth for CI/CD"
